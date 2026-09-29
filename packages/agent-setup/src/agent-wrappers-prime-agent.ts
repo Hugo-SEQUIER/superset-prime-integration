@@ -1,20 +1,39 @@
 import fs from "node:fs";
 import path from "node:path";
-import { buildWrapperScript, createWrapper } from "./agent-wrappers-common";
+import {
+	buildWrapperScript,
+	createWrapper,
+	removeOwnedFileIfMarked,
+} from "./agent-wrappers-common";
 import { getTemplatePath } from "./config";
 import { getHooksDir } from "./paths";
 import { writeFileIfChanged } from "./write-file-if-changed";
 
 export const PRIME_AGENT_EXTENSION_FILE = "prime-agent-notify.mjs";
 
+/**
+ * Parameters: None; resolves the current Superset home.
+ * What it does: Keeps the extension private to this Superset installation, not global discovery.
+ * Output: Absolute managed extension path.
+ */
 export function getPrimeAgentExtensionPath(): string {
 	return path.join(getHooksDir(), PRIME_AGENT_EXTENSION_FILE);
 }
 
+/**
+ * Parameters: None.
+ * What it does: Reads the bundled extension without capturing terminal identity at install time.
+ * Output: Extension source; throws if the bundled template is unavailable.
+ */
 export function getPrimeAgentExtensionContent(): string {
 	return fs.readFileSync(getTemplatePath(PRIME_AGENT_EXTENSION_FILE), "utf8");
 }
 
+/**
+ * Parameters: None.
+ * What it does: Installs the managed extension; existing daemon sessions need a fresh session to load it.
+ * Output: Writes the extension only when its content or mode changes.
+ */
 export function createPrimeAgentExtension(): void {
 	const changed = writeFileIfChanged(
 		getPrimeAgentExtensionPath(),
@@ -26,6 +45,11 @@ export function createPrimeAgentExtension(): void {
 	);
 }
 
+/**
+ * Parameters: None.
+ * What it does: Captures launch identity in a private bridge because daemon reuse does not forward SUPERSET variables. Management commands bypass the bridge.
+ * Output: Installs the launcher; existing sessions must restart to pick up extension changes.
+ */
 export function createPrimeAgentWrapper(): void {
 	const extensionPath = getPrimeAgentExtensionPath();
 	const script = buildWrapperScript(
@@ -60,4 +84,17 @@ exec "$REAL_BIN" "$@"`,
 		{ agentId: "prime-agent" },
 	);
 	createWrapper("prime-agent", script);
+}
+
+/**
+ * Parameters: None.
+ * What it does: Revokes the wrapper's extension entrypoint without touching user extensions or active bridges.
+ * Output: Removes only a Superset-marked extension; missing files are harmless.
+ */
+export function removePrimeAgentExtension(): void {
+	removeOwnedFileIfMarked(
+		getPrimeAgentExtensionPath(),
+		"// Superset Prime Agent extension",
+		"Prime Agent extension",
+	);
 }

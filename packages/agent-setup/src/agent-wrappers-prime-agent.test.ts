@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it } from "bun:test";
 import { spawnSync } from "node:child_process";
 import {
 	chmodSync,
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -10,6 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { teardownSingleAgent } from "./agent-setup";
 import {
 	createPrimeAgentExtension,
 	createPrimeAgentWrapper,
@@ -194,5 +196,81 @@ console.log(JSON.stringify(readFileSync(${JSON.stringify(events)}, "utf8").trim(
 		);
 		expect(result.status).toBe(0);
 		expect(JSON.parse(result.stdout.trim())).toEqual(["Start", "Failed"]);
+	});
+
+	it("revokes loaded hooks, queued events, and input when the extension is removed", () => {
+		const events = path.join(home, "events.jsonl");
+		writeFileSync(events, "");
+		const script = `import extension from ${JSON.stringify(bridgePath)};
+import { rmSync } from "node:fs";
+const handlers = {};
+let tool;
+extension({ on(name, handler) { handlers[name] = handler; }, registerTool(value) { tool = value; } });
+const ctx = {
+  hasUI: true,
+  sessionManager: { getSessionId: () => "session-uuid" },
+  ui: { input() { throw new Error("Disabled integration opened input"); } },
+};
+const queued = handlers.agent_start({}, ctx);
+rmSync(${JSON.stringify(getPrimeAgentExtensionPath())});
+await queued;
+await handlers.agent_end({ messages: [] }, ctx);
+const result = await tool.execute("call-1", { question: "Continue?" }, undefined, undefined, ctx);
+await handlers.session_shutdown({ reason: "quit" }, ctx);
+console.log(JSON.stringify(result));`;
+		const result = spawnSync(
+			process.execPath,
+			["--input-type=module", "-e", script],
+			{
+				encoding: "utf8",
+				env: process.env,
+			},
+		);
+		expect(result.status).toBe(0);
+		expect(JSON.parse(result.stdout).content[0].text).toContain(
+			"Interactive input is unavailable",
+		);
+		expect(readFileSync(events, "utf8")).toBe("");
+		expect(existsSync(bridgePath)).toBe(false);
+	});
+
+	it("tears down idempotently, preserves user files, and can be re-enabled", () => {
+		createPrimeAgentExtension();
+		const unrelated = path.join(home, "hooks", "user-extension.mjs");
+		writeFileSync(unrelated, "user extension");
+		expect(teardownSingleAgent("prime-agent")).toBe(true);
+		expect(existsSync(getPrimeAgentExtensionPath())).toBe(false);
+		expect(teardownSingleAgent("prime-agent")).toBe(true);
+		expect(readFileSync(unrelated, "utf8")).toBe("user extension");
+		const run = () =>
+			spawnSync(
+				path.join(home, "bin", "prime-agent"),
+				["--resume", "session-1"],
+				{
+					encoding: "utf8",
+					env: {
+						...process.env,
+						SUPERSET_TERMINAL_ID: "terminal-1",
+						SUPERSET_AGENT_ID: "",
+						PATH: `${path.join(home, "bin")}:${path.join(home, "real-bin")}:${process.env.PATH}`,
+					},
+				},
+			);
+		const disabled = run();
+		expect(disabled.status).toBe(0);
+		expect(disabled.stdout.trim().split("\n")).toEqual([
+			"--resume",
+			"session-1",
+		]);
+		writeFileSync(getPrimeAgentExtensionPath(), "user-owned replacement");
+		teardownSingleAgent("prime-agent");
+		expect(readFileSync(getPrimeAgentExtensionPath(), "utf8")).toBe(
+			"user-owned replacement",
+		);
+		rmSync(getPrimeAgentExtensionPath());
+		createPrimeAgentExtension();
+		const enabled = run();
+		expect(enabled.status).toBe(0);
+		expect(enabled.stdout.trim().split("\n")[0]).toBe("--extension");
 	});
 });

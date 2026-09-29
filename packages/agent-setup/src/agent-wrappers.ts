@@ -149,6 +149,7 @@ export {
 	createPrimeAgentWrapper,
 	getPrimeAgentExtensionContent,
 	getPrimeAgentExtensionPath,
+	removePrimeAgentExtension,
 } from "./agent-wrappers-prime-agent";
 export {
 	createVibeHooksToml,
