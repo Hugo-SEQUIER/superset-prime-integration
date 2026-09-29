@@ -38,6 +38,7 @@ import {
 	createPiExtension,
 	createPrimeAgentExtension,
 	createPrimeAgentWrapper,
+	createUfoWrapper,
 	createVibeHooksToml,
 	createVibeWrapper,
 	removeAmpPlugin,
@@ -162,6 +163,9 @@ const AGENT_SETUP_DEFINITIONS: Record<
 			createMuseWrapper,
 		],
 		teardown: [removeMuseManagedHooks],
+	},
+	ufo: {
+		setup: [createUfoWrapper],
 	},
 };
 
