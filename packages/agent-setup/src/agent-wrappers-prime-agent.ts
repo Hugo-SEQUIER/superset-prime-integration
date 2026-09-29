@@ -48,7 +48,7 @@ export function createPrimeAgentExtension(): void {
 /**
  * Parameters: None.
  * What it does: Captures launch identity in a private bridge because daemon reuse does not forward SUPERSET variables. Management commands bypass the bridge.
- * Output: Installs the launcher; existing sessions must restart to pick up extension changes.
+ * Output: Installs a launcher that reaps unused bridges after client exit and preserves loaded bridges for daemon sessions.
  */
 export function createPrimeAgentWrapper(): void {
 	const extensionPath = getPrimeAgentExtensionPath();
@@ -73,7 +73,12 @@ if [ -n "$SUPERSET_TERMINAL_ID" ] && [ -f '${extensionPath.replaceAll("'", "'\"'
       "export default (pi) => extension(pi, " + JSON.stringify(env) + ");\\n",
       { mode: 0o600 });
   ' "$_superset_prime_bridge_dir/bridge.mjs" '${extensionPath.replaceAll("'", "'\"'\"'")}' ; then
-    exec "$REAL_BIN" --extension "$_superset_prime_bridge_dir/bridge.mjs" "$@"
+    trap 'if [ ! -f "$_superset_prime_bridge_dir/bridge.mjs.loaded" ]; then
+      rm -f "$_superset_prime_bridge_dir/bridge.mjs"
+      rmdir "$_superset_prime_bridge_dir" 2>/dev/null || true
+    fi' EXIT
+    "$REAL_BIN" --extension "$_superset_prime_bridge_dir/bridge.mjs" "$@"
+    exit $?
   fi
   if [ -n "$_superset_prime_bridge_dir" ]; then
     rm -f "$_superset_prime_bridge_dir/bridge.mjs"

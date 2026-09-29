@@ -1,6 +1,6 @@
 // Superset Prime Agent extension v2
 import { execFile } from "node:child_process";
-import { existsSync, rmSync, rmdirSync } from "node:fs";
+import { existsSync, rmSync, rmdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 /**
@@ -13,6 +13,10 @@ export default function (pi, env) {
 
   const extensionFile = new URL(import.meta.url);
   if (!existsSync(extensionFile)) return;
+
+  if (env.SUPERSET_PRIME_BRIDGE_PATH) {
+    writeFileSync(`${env.SUPERSET_PRIME_BRIDGE_PATH}.loaded`, "", { mode: 0o600 });
+  }
 
   const notify = `${env.SUPERSET_HOME_DIR}/hooks/notify.sh`;
   let pending = Promise.resolve();
@@ -74,7 +78,8 @@ export default function (pi, env) {
     await report("SessionEnd", ctx);
     if (event.reason === "quit" && env.SUPERSET_PRIME_BRIDGE_PATH) {
       try {
-        rmSync(env.SUPERSET_PRIME_BRIDGE_PATH);
+        rmSync(env.SUPERSET_PRIME_BRIDGE_PATH, { force: true });
+        rmSync(`${env.SUPERSET_PRIME_BRIDGE_PATH}.loaded`, { force: true });
         rmdirSync(dirname(env.SUPERSET_PRIME_BRIDGE_PATH));
       } catch {}
     }

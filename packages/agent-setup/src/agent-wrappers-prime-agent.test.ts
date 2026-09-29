@@ -6,6 +6,7 @@ import {
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
+	readdirSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
@@ -39,7 +40,16 @@ describe("Prime Agent integration", () => {
 		mkdirSync(realBin);
 		writeFileSync(
 			path.join(realBin, "prime-agent"),
-			"#!/bin/bash\nprintf '%s\n' \"$@\"\n",
+			`#!/bin/bash
+if [ "$1" = "--extension" ] && [ "$PRIME_TEST_REUSE" != "1" ]; then
+  node --input-type=module -e '
+    const { default: extension } = await import(process.argv[1]);
+    extension({ on() {}, registerTool() {} });
+  ' "$2" || exit $?
+fi
+printf '%s\n' "$@"
+exit "\${PRIME_TEST_EXIT_CODE:-0}"
+`,
 			{ mode: 0o755 },
 		);
 		chmodSync(path.join(realBin, "prime-agent"), 0o755);
@@ -68,6 +78,39 @@ describe("Prime Agent integration", () => {
 		expect(
 			run("terminal-1", ["sessions", "--all"]).stdout.trim().split("\n"),
 		).toEqual(["sessions", "--all"]);
+	});
+
+	it("reaps unused bridges on repeated resumes and failed launches without touching loaded bridges", () => {
+		const before = readdirSync(path.join(home, "hooks")).sort();
+		for (const exitCode of [0, 0, 17]) {
+			const result = spawnSync(
+				path.join(home, "bin", "prime-agent"),
+				["--resume", "session-1"],
+				{
+					encoding: "utf8",
+					env: {
+						...process.env,
+						SUPERSET_TERMINAL_ID: "terminal-1",
+						SUPERSET_AGENT_ID: "",
+						PRIME_TEST_REUSE: "1",
+						PRIME_TEST_EXIT_CODE: String(exitCode),
+						PATH: `${path.join(home, "bin")}:${path.join(home, "real-bin")}:${process.env.PATH}`,
+					},
+				},
+			);
+			expect(result.status).toBe(exitCode);
+			const args = result.stdout.trim().split("\n");
+			expect(args).toEqual([
+				"--extension",
+				expect.any(String),
+				"--resume",
+				"session-1",
+			]);
+			expect(existsSync(path.dirname(args[1]!))).toBe(false);
+			expect(readdirSync(path.join(home, "hooks")).sort()).toEqual(before);
+			expect(existsSync(bridgePath)).toBe(true);
+			expect(existsSync(`${bridgePath}.loaded`)).toBe(true);
+		}
 	});
 
 	it("reports attach, working, completed, and detach with the resumable session id", () => {
@@ -232,6 +275,7 @@ console.log(JSON.stringify(result));`;
 		);
 		expect(readFileSync(events, "utf8")).toBe("");
 		expect(existsSync(bridgePath)).toBe(false);
+		expect(existsSync(path.dirname(bridgePath))).toBe(false);
 	});
 
 	it("tears down idempotently, preserves user files, and can be re-enabled", () => {
