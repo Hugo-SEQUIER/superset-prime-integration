@@ -1,5 +1,6 @@
 import { describe, expect, it, test } from "bun:test";
 import {
+	dropProjectOnSection,
 	hasInFlightRowWrite,
 	planExternalSync,
 	projectSectionFromNeighbors,
@@ -114,6 +115,39 @@ describe("projects lane", () => {
 			{ type: "section", id: "work" },
 			{ type: "project", id: "b", sectionId: "work" },
 			{ type: "project", id: "a", sectionId: null },
+		]);
+	});
+});
+
+describe("dropProjectOnSection", () => {
+	const lane = {
+		ids: ["psec::empty", "psec::work", "w1", "psec::closed", "c1", "x"],
+		membership: { w1: "psec::work", c1: "psec::closed" },
+		collapsedSectionIds: new Set(["psec::closed"]),
+	};
+
+	it("drops into an empty section above the project, not beside it", () => {
+		const dropped = dropProjectOnSection(lane, "x", "psec::empty");
+		expect(dropped.ids.slice(0, 2)).toEqual(["psec::empty", "x"]);
+		expect(dropped.membership.x).toBe("psec::empty");
+	});
+
+	it("goes first in an open section and last in a collapsed one", () => {
+		expect(dropProjectOnSection(lane, "x", "psec::work").ids).toEqual([
+			"psec::empty",
+			"psec::work",
+			"x",
+			"w1",
+			"psec::closed",
+			"c1",
+		]);
+		expect(dropProjectOnSection(lane, "w1", "psec::closed").ids).toEqual([
+			"psec::empty",
+			"psec::work",
+			"psec::closed",
+			"c1",
+			"w1",
+			"x",
 		]);
 	});
 });

@@ -324,6 +324,37 @@ export function projectSectionFromNeighbors(
 	return model.membership[String(above)] ?? null;
 }
 
+/**
+ * A project dropped onto a section header goes inside that section: first
+ * in an open section, last in a collapsed one (it stays hidden with the
+ * rest). Unlike a drop on a project, this never depends on which way the
+ * pointer came from.
+ */
+export function dropProjectOnSection(
+	lane: Pick<ProjectLaneModel, "ids" | "membership" | "collapsedSectionIds">,
+	projectId: UniqueIdentifier,
+	sectionFlatId: string,
+): Pick<ProjectLaneModel, "ids" | "membership"> {
+	const ids = lane.ids.filter((id) => id !== projectId);
+	const headerIndex = ids.indexOf(sectionFlatId);
+	if (headerIndex === -1) {
+		return { ids: lane.ids, membership: lane.membership };
+	}
+	let insertAt = headerIndex + 1;
+	if (lane.collapsedSectionIds.has(sectionFlatId)) {
+		while (
+			insertAt < ids.length &&
+			lane.membership[String(ids[insertAt])] === sectionFlatId
+		) {
+			insertAt += 1;
+		}
+	}
+	return {
+		ids: [...ids.slice(0, insertAt), projectId, ...ids.slice(insertAt)],
+		membership: { ...lane.membership, [String(projectId)]: sectionFlatId },
+	};
+}
+
 /** The lane as rows to persist, with section ids unwrapped. */
 export function toStoredProjectLane(
 	ids: readonly UniqueIdentifier[],
@@ -855,17 +886,23 @@ export function useSidebarDnd({
 		[items, activeType, activeContainer],
 	);
 
-	const projectLaneSortingStrategy = useMemo(
-		() =>
-			activeType === "projectSection"
-				? createSectionUnitSortingStrategy(
-						projectLaneModel.ids,
-						projectLaneModel.membership,
-						isProjectSec,
-					)
-				: verticalListSortingStrategy,
-		[activeType, projectLaneModel],
-	);
+	const projectLaneSortingStrategy = useMemo((): SortingStrategy => {
+		if (activeType === "projectSection") {
+			return createSectionUnitSortingStrategy(
+				projectLaneModel.ids,
+				projectLaneModel.membership,
+				isProjectSec,
+			);
+		}
+		// Hovering a section header means "drop inside": the header lights up
+		// and nothing shifts, since the drop doesn't take the header's slot.
+		return (args) => {
+			const overId = projectLaneModel.ids[args.overIndex];
+			return overId !== undefined && isProjectSec(overId)
+				? null
+				: verticalListSortingStrategy(args);
+		};
+	}, [activeType, projectLaneModel]);
 
 	// ── Collision detection ──────────────────────────────────────────
 	//
@@ -905,14 +942,21 @@ export function useSidebarDnd({
 			const type = typeOf(args.active.id);
 
 			if (type === "project") {
-				return closestCenter({
+				// The pointer picks the target, not the ghost's center: an
+				// expanded project's ghost is tall, so its center sits far from
+				// the pointer and would make a section header hard to hit.
+				const projectArgs = {
 					...args,
 					droppableContainers: args.droppableContainers.filter(
 						(container) =>
 							projectIds.has(String(container.id)) ||
 							isProjectSec(container.id),
 					),
-				});
+				};
+				const pointerCollisions = pointerWithin(projectArgs);
+				return pointerCollisions.length > 0
+					? pointerCollisions
+					: closestCenter(projectArgs);
 			}
 
 			if (type === "projectSection") {
@@ -1139,7 +1183,15 @@ export function useSidebarDnd({
 				const lane = projectLaneModelRef.current;
 				let ids = lane.ids;
 				const membership = { ...lane.membership };
-				if (type === "project") {
+				if (type === "project" && isProjectSec(over.id)) {
+					const dropped = dropProjectOnSection(
+						lane,
+						active.id,
+						String(over.id),
+					);
+					ids = dropped.ids;
+					Object.assign(membership, dropped.membership);
+				} else if (type === "project") {
 					const oldIndex = ids.indexOf(active.id);
 					const newIndex = ids.indexOf(over.id);
 					if (oldIndex === -1 || newIndex === -1) return;

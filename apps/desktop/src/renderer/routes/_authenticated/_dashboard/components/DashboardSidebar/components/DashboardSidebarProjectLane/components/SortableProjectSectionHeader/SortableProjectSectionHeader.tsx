@@ -1,11 +1,15 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { cn } from "@superset/ui/utils";
 import { useCallback, useEffect, useState } from "react";
 import { RenameInput } from "renderer/screens/main/components/WorkspaceSidebar/RenameInput";
 import { PROJECT_COLOR_DEFAULT } from "shared/constants/project-colors";
 import { getBlockedDragProps } from "../../../../hooks/useBlockedDragNotice";
 import { useProjectSidebarSections } from "../../../../hooks/useProjectSidebarSections";
-import { projectSecId } from "../../../../hooks/useSidebarDnd";
+import {
+	projectSecId,
+	useDashboardSidebarDnd,
+} from "../../../../hooks/useSidebarDnd";
 import type { ProjectSidebarSection } from "../../../../utils/projectSidebarLane";
 import { DashboardSidebarGroupHeader } from "../../../DashboardSidebarGroupHeader";
 import {
@@ -33,6 +37,7 @@ export function SortableProjectSectionHeader({
 		useDashboardSidebarSectionRename();
 	const [isRenaming, setIsRenaming] = useState(false);
 	const [renameValue, setRenameValue] = useState(section.name);
+	const { activeType } = useDashboardSidebarDnd();
 	const {
 		attributes,
 		listeners,
@@ -40,7 +45,9 @@ export function SortableProjectSectionHeader({
 		transform,
 		transition,
 		isDragging,
+		isOver,
 	} = useSortable({ id: projectSecId(section.id), disabled: isDragDisabled });
+	const isDropTarget = isOver && activeType === "project";
 
 	const startRename = useCallback(() => {
 		setRenameValue(section.name);
@@ -115,6 +122,7 @@ export function SortableProjectSectionHeader({
 					isEditing={isRenaming}
 					isDraggable={!isDragDisabled}
 					indentation="top-level"
+					className={cn(isDropTarget && "bg-fill-selected text-foreground")}
 					onToggleCollapse={() => toggleProjectSectionCollapsed(section.id)}
 					actions={
 						<DashboardSidebarSectionActionsDropdown
