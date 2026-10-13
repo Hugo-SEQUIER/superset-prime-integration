@@ -78,6 +78,9 @@ export function DashboardSidebarWorkspacesHeader({
 	const { requestSectionRename } = useDashboardSidebarSectionRename();
 	const handleNewSection = () => {
 		if (isSectionCollapsed) toggleSectionCollapsed("workspaces");
+		// A filtered list hides empty sections, so the new one could not show.
+		onFilterQueryChange("");
+		setIsFilterExpanded(false);
 		requestSectionRename(createProjectSection());
 	};
 	const openEmptyProject = useOpenEmptyProjectModal();

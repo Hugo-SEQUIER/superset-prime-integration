@@ -305,23 +305,27 @@ function buildProjectLaneModel(
 }
 
 /**
- * The section a project lands in: the one whose header or project sits
- * directly above it. A collapsed section's header doesn't capture: a project
- * dropped under it lands below the section, where it stays visible.
+ * A project dropped onto another project takes its place and its section:
+ * below it when moving down, above it when moving up. A collapsed section
+ * never captures, so the dropped project stays visible. Null when the drop
+ * changes nothing.
  */
-export function projectSectionFromNeighbors(
-	ids: readonly UniqueIdentifier[],
-	model: Pick<ProjectLaneModel, "membership" | "collapsedSectionIds">,
-	id: UniqueIdentifier,
-): string | null {
-	const index = ids.indexOf(id);
-	if (index <= 0) return null;
-	const above = ids[index - 1];
-	if (above === undefined) return null;
-	if (isProjectSec(above)) {
-		return model.collapsedSectionIds.has(String(above)) ? null : String(above);
+export function dropProjectOnProject(
+	lane: Pick<ProjectLaneModel, "ids" | "membership" | "collapsedSectionIds">,
+	projectId: UniqueIdentifier,
+	overId: UniqueIdentifier,
+): Pick<ProjectLaneModel, "ids" | "membership"> | null {
+	const oldIndex = lane.ids.indexOf(projectId);
+	const newIndex = lane.ids.indexOf(overId);
+	if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return null;
+	const overSection = lane.membership[String(overId)];
+	const membership = { ...lane.membership };
+	if (overSection && !lane.collapsedSectionIds.has(overSection)) {
+		membership[String(projectId)] = overSection;
+	} else {
+		delete membership[String(projectId)];
 	}
-	return model.membership[String(above)] ?? null;
+	return { ids: arrayMove([...lane.ids], oldIndex, newIndex), membership };
 }
 
 /**
@@ -1182,27 +1186,14 @@ export function useSidebarDnd({
 			if (type === "project" || type === "projectSection") {
 				const lane = projectLaneModelRef.current;
 				let ids = lane.ids;
-				const membership = { ...lane.membership };
-				if (type === "project" && isProjectSec(over.id)) {
-					const dropped = dropProjectOnSection(
-						lane,
-						active.id,
-						String(over.id),
-					);
+				let membership = lane.membership;
+				if (type === "project") {
+					const dropped = isProjectSec(over.id)
+						? dropProjectOnSection(lane, active.id, String(over.id))
+						: dropProjectOnProject(lane, active.id, over.id);
+					if (!dropped) return;
 					ids = dropped.ids;
-					Object.assign(membership, dropped.membership);
-				} else if (type === "project") {
-					const oldIndex = ids.indexOf(active.id);
-					const newIndex = ids.indexOf(over.id);
-					if (oldIndex === -1 || newIndex === -1) return;
-					if (oldIndex !== newIndex) ids = arrayMove(ids, oldIndex, newIndex);
-					const sectionFlatId = projectSectionFromNeighbors(
-						ids,
-						lane,
-						active.id,
-					);
-					if (sectionFlatId) membership[String(active.id)] = sectionFlatId;
-					else delete membership[String(active.id)];
+					membership = dropped.membership;
 				} else {
 					const units = buildTopLevelUnits(ids, membership, isProjectSec);
 					const oldIndex = findUnitIndex(units, active.id);

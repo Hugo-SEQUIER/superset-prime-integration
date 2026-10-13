@@ -1,9 +1,9 @@
 import { describe, expect, it, test } from "bun:test";
 import {
+	dropProjectOnProject,
 	dropProjectOnSection,
 	hasInFlightRowWrite,
 	planExternalSync,
-	projectSectionFromNeighbors,
 	toStoredProjectLane,
 } from "./useSidebarDnd";
 
@@ -87,35 +87,46 @@ describe("planExternalSync", () => {
 	});
 });
 
-describe("projects lane", () => {
-	const ids = ["a", "psec::work", "b", "psec::closed", "c", "d"];
-	const model = {
-		membership: { b: "psec::work", c: "psec::closed" },
-		collapsedSectionIds: new Set(["psec::closed"]),
-	};
-
-	it("a project joins the section whose header or project is above it", () => {
-		expect(
-			projectSectionFromNeighbors(["a", "psec::work", "x"], model, "x"),
-		).toBe("psec::work");
-		expect(projectSectionFromNeighbors(ids, model, "b")).toBe("psec::work");
-		expect(projectSectionFromNeighbors(ids, model, "a")).toBeNull();
-	});
-
-	it("a collapsed section's header doesn't capture a dropped project", () => {
-		expect(
-			projectSectionFromNeighbors(["psec::closed", "x"], model, "x"),
-		).toBeNull();
-	});
-
+describe("toStoredProjectLane", () => {
 	it("unwraps section ids for persistence", () => {
 		expect(
-			toStoredProjectLane(["psec::work", "b", "a"], model.membership),
+			toStoredProjectLane(["psec::work", "b", "a"], { b: "psec::work" }),
 		).toEqual([
 			{ type: "section", id: "work" },
 			{ type: "project", id: "b", sectionId: "work" },
 			{ type: "project", id: "a", sectionId: null },
 		]);
+	});
+});
+
+describe("dropProjectOnProject", () => {
+	const lane = {
+		ids: ["psec::work", "w1", "x", "psec::closed", "c1", "y", "z"],
+		membership: { w1: "psec::work", c1: "psec::closed" },
+		collapsedSectionIds: new Set(["psec::closed"]),
+	};
+
+	it("takes the section of the project it lands on", () => {
+		const down = dropProjectOnProject(lane, "x", "w1");
+		expect(down?.ids.slice(0, 3)).toEqual(["psec::work", "x", "w1"]);
+		expect(down?.membership.x).toBe("psec::work");
+		const up = dropProjectOnProject(lane, "w1", "x");
+		expect(up?.ids.slice(0, 3)).toEqual(["psec::work", "x", "w1"]);
+		expect(up?.membership.w1).toBeUndefined();
+	});
+
+	it("moves up to stay top-level right below a section", () => {
+		const dropped = dropProjectOnProject(lane, "z", "y");
+		expect(dropped?.ids.slice(3)).toEqual(["psec::closed", "c1", "z", "y"]);
+		expect(dropped?.membership.z).toBeUndefined();
+	});
+
+	it("never joins a collapsed section", () => {
+		expect(dropProjectOnProject(lane, "y", "c1")?.membership.y).toBeUndefined();
+	});
+
+	it("changes nothing when dropped on itself", () => {
+		expect(dropProjectOnProject(lane, "x", "x")).toBeNull();
 	});
 });
 

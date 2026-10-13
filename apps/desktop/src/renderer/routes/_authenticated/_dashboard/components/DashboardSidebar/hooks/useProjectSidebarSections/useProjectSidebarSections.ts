@@ -1,8 +1,11 @@
+import { useLingui } from "@lingui/react/macro";
 import { useCallback } from "react";
 import { useCollections } from "renderer/routes/_authenticated/providers/CollectionsProvider";
+import { getPrependTabOrder } from "renderer/routes/_authenticated/providers/CollectionsProvider/dashboardSidebarLocal";
 import {
 	getStoredProjectLane,
 	insertSectionInLane,
+	mergeVisibleLane,
 	moveProjectInLane,
 	removeSectionFromLane,
 	type StoredLaneEntry,
@@ -10,6 +13,7 @@ import {
 
 /** Mutations for the Projects list's sections; all per device. */
 export function useProjectSidebarSections() {
+	const { t } = useLingui();
 	const collections = useCollections();
 
 	const readLane = useCallback(
@@ -25,30 +29,69 @@ export function useProjectSidebarSections() {
 		[collections],
 	);
 
-	/** Renumbers the lane in order, writing only rows that changed. */
+	/** Renumbers the lane in order: one write per collection, changed rows only. */
 	const writeLane = useCallback(
 		(lane: readonly StoredLaneEntry[]) => {
+			const sectionOrders = new Map<string, number>();
+			const projectPlacements = new Map<
+				string,
+				{ tabOrder: number; sectionId: string | null }
+			>();
 			lane.forEach((entry, index) => {
 				const tabOrder = index + 1;
 				if (entry.type === "section") {
 					const row = collections.v2SidebarProjectSections.get(entry.id);
-					if (!row || row.tabOrder === tabOrder) return;
-					collections.v2SidebarProjectSections.update(entry.id, (draft) => {
-						draft.tabOrder = tabOrder;
-					});
+					if (row && row.tabOrder !== tabOrder) {
+						sectionOrders.set(entry.id, tabOrder);
+					}
 					return;
 				}
 				const row = collections.v2SidebarProjects.get(entry.id);
 				if (
-					!row ||
-					(row.tabOrder === tabOrder && row.sectionId === entry.sectionId)
+					row &&
+					(row.tabOrder !== tabOrder || row.sectionId !== entry.sectionId)
 				) {
-					return;
+					projectPlacements.set(entry.id, {
+						tabOrder,
+						sectionId: entry.sectionId,
+					});
 				}
-				collections.v2SidebarProjects.update(entry.id, (draft) => {
-					draft.tabOrder = tabOrder;
-					draft.sectionId = entry.sectionId;
-				});
+			});
+			if (sectionOrders.size > 0) {
+				collections.v2SidebarProjectSections.update(
+					[...sectionOrders.keys()],
+					(drafts) => {
+						for (const draft of drafts) {
+							draft.tabOrder =
+								sectionOrders.get(draft.sectionId) ?? draft.tabOrder;
+						}
+					},
+				);
+			}
+			if (projectPlacements.size > 0) {
+				collections.v2SidebarProjects.update(
+					[...projectPlacements.keys()],
+					(drafts) => {
+						for (const draft of drafts) {
+							const placement = projectPlacements.get(draft.projectId);
+							if (!placement) continue;
+							draft.tabOrder = placement.tabOrder;
+							draft.sectionId = placement.sectionId;
+						}
+					},
+				);
+			}
+		},
+		[collections],
+	);
+
+	const expandProjectSection = useCallback(
+		(sectionId: string) => {
+			if (!collections.v2SidebarProjectSections.get(sectionId)?.isCollapsed) {
+				return;
+			}
+			collections.v2SidebarProjectSections.update(sectionId, (draft) => {
+				draft.isCollapsed = false;
 			});
 		},
 		[collections],
@@ -56,21 +99,31 @@ export function useProjectSidebarSections() {
 
 	const createProjectSection = useCallback(
 		(options: { name?: string; fromProjectId?: string } = {}) => {
-			const { name = "New section", fromProjectId } = options;
+			const { name = t({ message: "New section" }), fromProjectId } = options;
 			const sectionId = crypto.randomUUID();
-			const lane = insertSectionInLane(readLane(), sectionId, fromProjectId);
-			collections.v2SidebarProjectSections.insert({
+			const row = {
 				sectionId,
 				name,
 				createdAt: new Date(),
-				tabOrder: 0,
 				isCollapsed: false,
 				color: null,
-			});
+			};
+			if (!fromProjectId) {
+				collections.v2SidebarProjectSections.insert({
+					...row,
+					tabOrder: getPrependTabOrder([
+						...collections.v2SidebarProjectSections.state.values(),
+						...collections.v2SidebarProjects.state.values(),
+					]),
+				});
+				return sectionId;
+			}
+			const lane = insertSectionInLane(readLane(), sectionId, fromProjectId);
+			collections.v2SidebarProjectSections.insert({ ...row, tabOrder: 0 });
 			writeLane(lane);
 			return sectionId;
 		},
-		[collections, readLane, writeLane],
+		[collections, readLane, t, writeLane],
 	);
 
 	const renameProjectSection = useCallback(
@@ -109,16 +162,18 @@ export function useProjectSidebarSections() {
 	const moveProjectToSection = useCallback(
 		(projectId: string, sectionId: string | null) => {
 			writeLane(moveProjectInLane(readLane(), projectId, sectionId));
-			if (
-				sectionId !== null &&
-				collections.v2SidebarProjectSections.get(sectionId)?.isCollapsed
-			) {
-				collections.v2SidebarProjectSections.update(sectionId, (draft) => {
-					draft.isCollapsed = false;
-				});
-			}
+			if (sectionId !== null) expandProjectSection(sectionId);
 		},
-		[collections, readLane, writeLane],
+		[expandProjectSection, readLane, writeLane],
+	);
+
+	/** Opens the collapsed section a project is filed under, if any. */
+	const revealProject = useCallback(
+		(projectId: string) => {
+			const sectionId = collections.v2SidebarProjects.get(projectId)?.sectionId;
+			if (sectionId) expandProjectSection(sectionId);
+		},
+		[collections, expandProjectSection],
 	);
 
 	const deleteProjectSection = useCallback(
@@ -130,12 +185,12 @@ export function useProjectSidebarSections() {
 		[collections, readLane, writeLane],
 	);
 
-	/** Persists a drag: the visible lane in its new order. */
+	/** Persists a drag of the visible lane; hidden projects keep their slots. */
 	const commitProjectLane = useCallback(
-		(lane: readonly StoredLaneEntry[]) => {
-			writeLane(lane);
+		(visibleLane: readonly StoredLaneEntry[]) => {
+			writeLane(mergeVisibleLane(readLane(), visibleLane));
 		},
-		[writeLane],
+		[readLane, writeLane],
 	);
 
 	return {
@@ -144,6 +199,7 @@ export function useProjectSidebarSections() {
 		deleteProjectSection,
 		moveProjectToSection,
 		renameProjectSection,
+		revealProject,
 		setProjectSectionColor,
 		toggleProjectSectionCollapsed,
 	};

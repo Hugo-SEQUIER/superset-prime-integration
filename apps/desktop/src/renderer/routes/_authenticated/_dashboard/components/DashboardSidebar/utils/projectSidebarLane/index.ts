@@ -2,6 +2,7 @@ export {
 	buildProjectSidebarLane,
 	getStoredProjectLane,
 	insertSectionInLane,
+	mergeVisibleLane,
 	moveProjectInLane,
 	type ProjectPlacementInput,
 	type ProjectSectionInput,

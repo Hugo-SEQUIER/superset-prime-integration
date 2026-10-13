@@ -4,6 +4,7 @@ import {
 	buildProjectSidebarLane,
 	getStoredProjectLane,
 	insertSectionInLane,
+	mergeVisibleLane,
 	moveProjectInLane,
 	type ProjectSectionInput,
 	type ProjectSidebarLaneItem,
@@ -109,8 +110,7 @@ describe("lane planning", () => {
 		]);
 	});
 
-	it("opens a new section at the top, or in place of the project it came from", () => {
-		expect(stored(insertSectionInLane(lane, "new"))[0]).toBe("[new]");
+	it("opens a new section in place of the project it came from", () => {
 		expect(stored(insertSectionInLane(lane, "new", "c"))).toEqual([
 			"a",
 			"[work]",
@@ -124,6 +124,16 @@ describe("lane planning", () => {
 			"[new]",
 			"new/b",
 			"c",
+		]);
+	});
+
+	it("a drag of the visible rows leaves hidden projects in their slots", () => {
+		const visible = lane.filter((entry) => entry.id !== "b").reverse();
+		expect(stored(mergeVisibleLane(lane, visible))).toEqual([
+			"c",
+			"[work]",
+			"work/b",
+			"a",
 		]);
 	});
 

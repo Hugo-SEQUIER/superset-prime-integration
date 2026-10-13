@@ -15,7 +15,7 @@ import { DashboardSidebarGroupHeader } from "../../../DashboardSidebarGroupHeade
 import {
 	DashboardSidebarSectionActionsDropdown,
 	DashboardSidebarSectionContextMenu,
-} from "../../../DashboardSidebarSection/components/DashboardSidebarSectionContextMenu";
+} from "../../../DashboardSidebarSectionContextMenu";
 import { useDashboardSidebarSectionRename } from "../../../DashboardSidebarSectionRenameContext";
 
 interface SortableProjectSectionHeaderProps {

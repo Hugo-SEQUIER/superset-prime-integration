@@ -84,7 +84,7 @@ export function DashboardSidebarProjectLane({
 						project={item.project}
 						isCollapsed={isSidebarCollapsed}
 						isDragDisabled={isDragDisabled}
-						isInSection={item.section !== null}
+						sectionId={item.section?.id ?? null}
 						sectionColor={item.section?.color ?? null}
 						isHiddenBySection={
 							!isSidebarCollapsed && (item.section?.isCollapsed ?? false)

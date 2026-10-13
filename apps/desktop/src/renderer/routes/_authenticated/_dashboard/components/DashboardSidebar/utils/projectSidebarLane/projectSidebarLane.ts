@@ -184,6 +184,24 @@ export function getStoredProjectLane(
 		});
 }
 
+/**
+ * The stored lane with its visible rows put in `visible`'s order. Rows the
+ * view hides keep their slots, so a drag never moves them.
+ */
+export function mergeVisibleLane(
+	stored: readonly StoredLaneEntry[],
+	visible: readonly StoredLaneEntry[],
+): StoredLaneEntry[] {
+	const keyOf = (entry: StoredLaneEntry) => `${entry.type}:${entry.id}`;
+	const storedKeys = new Set(stored.map(keyOf));
+	const placed = visible.filter((entry) => storedKeys.has(keyOf(entry)));
+	const placedKeys = new Set(placed.map(keyOf));
+	let next = 0;
+	return stored.map((entry) =>
+		placedKeys.has(keyOf(entry)) ? (placed[next++] ?? entry) : entry,
+	);
+}
+
 /** Index just past a section's last project (or its header when empty). */
 function getSectionBlockEnd(
 	lane: StoredLaneEntry[],
@@ -228,21 +246,18 @@ export function moveProjectInLane(
 }
 
 /**
- * The lane with a new section. From a project, the section takes that
- * project's place (below its old section when it had one) and holds it;
- * otherwise the section opens at the top of the list.
+ * The lane with a new section that takes `fromProjectId`'s place (below its
+ * old section when it had one) and holds it.
  */
 export function insertSectionInLane(
 	lane: readonly StoredLaneEntry[],
 	sectionId: string,
-	fromProjectId?: string,
+	fromProjectId: string,
 ): StoredLaneEntry[] {
 	const header: StoredLaneEntry = { type: "section", id: sectionId };
-	const source = fromProjectId
-		? lane.find(
-				(entry) => entry.type === "project" && entry.id === fromProjectId,
-			)
-		: undefined;
+	const source = lane.find(
+		(entry) => entry.type === "project" && entry.id === fromProjectId,
+	);
 	if (!source || source.type !== "project") return [header, ...lane];
 	const rest = lane.filter((entry) => entry !== source);
 	const insertAt =

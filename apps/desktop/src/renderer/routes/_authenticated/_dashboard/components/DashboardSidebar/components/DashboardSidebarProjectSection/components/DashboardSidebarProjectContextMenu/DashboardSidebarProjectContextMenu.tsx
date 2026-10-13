@@ -26,6 +26,9 @@ import { useProjectSectionMenu } from "./hooks/useProjectSectionMenu";
 
 interface DashboardSidebarProjectContextMenuProps {
 	projectId: string;
+	projectSectionId: string | null;
+	/** The icon rail: section headers aren't shown, so nothing to rename in. */
+	isSidebarCollapsed: boolean;
 	onCreateSection: () => void;
 	onImportWorktrees: () => void;
 	onOpenInFinder: () => void;
@@ -39,6 +42,8 @@ interface DashboardSidebarProjectContextMenuProps {
 
 export function DashboardSidebarProjectContextMenu({
 	projectId,
+	projectSectionId,
+	isSidebarCollapsed,
 	onCreateSection,
 	onImportWorktrees,
 	onOpenInFinder,
@@ -50,8 +55,10 @@ export function DashboardSidebarProjectContextMenu({
 }: DashboardSidebarProjectContextMenuProps) {
 	const { preferences, setTagFolderHidden } = useV2UserPreferences();
 	const hiddenTags = preferences.hiddenTagFolders[projectId] ?? [];
-	const { sections, currentSectionId, moveToSection, moveToNewSection } =
-		useProjectSectionMenu(projectId);
+	const { sections, moveToSection, moveToNewSection } = useProjectSectionMenu({
+		projectId,
+		renameNewSection: !isSidebarCollapsed,
+	});
 	return (
 		<ContextMenu>
 			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
@@ -82,7 +89,7 @@ export function DashboardSidebarProjectContextMenu({
 						{sections.map((section) => (
 							<ContextMenuItem
 								key={section.id}
-								disabled={section.id === currentSectionId}
+								disabled={section.id === projectSectionId}
 								onSelect={() => moveToSection(section.id)}
 							>
 								{section.color && (
@@ -101,7 +108,7 @@ export function DashboardSidebarProjectContextMenu({
 						</ContextMenuItem>
 					</ContextMenuSubContent>
 				</ContextMenuSub>
-				{currentSectionId !== null && (
+				{projectSectionId !== null && (
 					<ContextMenuItem onSelect={() => moveToSection(null)}>
 						<LuArrowUp className="size-4 mr-2" />
 						<Trans>Remove from section</Trans>
