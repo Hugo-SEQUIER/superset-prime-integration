@@ -79,9 +79,10 @@ describe("buildProjectSidebarLane", () => {
 		});
 		expect(labels(lane)).toEqual(["[work]", "work/a"]);
 		const header = lane[0];
-		expect(header?.type === "section" && header.section.isCollapsed).toBe(
-			false,
-		);
+		expect(header?.type === "section" && header.section).toMatchObject({
+			isCollapsed: false,
+			isCollapseLocked: true,
+		});
 	});
 });
 

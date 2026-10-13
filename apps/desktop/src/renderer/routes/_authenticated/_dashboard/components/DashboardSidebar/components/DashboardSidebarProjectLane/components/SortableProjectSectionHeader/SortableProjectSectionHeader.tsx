@@ -119,6 +119,7 @@ export function SortableProjectSectionHeader({
 						)
 					}
 					isCollapsed={section.isCollapsed}
+					isToggleDisabled={section.isCollapseLocked}
 					isEditing={isRenaming}
 					isDraggable={!isDragDisabled}
 					indentation="top-level"

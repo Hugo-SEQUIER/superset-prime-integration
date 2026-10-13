@@ -5,6 +5,8 @@ export interface ProjectSidebarSection {
 	name: string;
 	color: string | null;
 	isCollapsed: boolean;
+	/** The filter shows it open, so collapsing it is off until that clears. */
+	isCollapseLocked: boolean;
 	/** Projects shown in it right now (the filter can hide some). */
 	projectCount: number;
 }
@@ -119,6 +121,7 @@ export function buildProjectSidebarLane({
 			name: input.name,
 			color: input.color,
 			isCollapsed: hideEmptySections ? false : input.isCollapsed,
+			isCollapseLocked: hideEmptySections,
 			projectCount: members.length,
 		};
 		lane.push({ type: "section", section });
