@@ -125,6 +125,17 @@ describe("dropProjectOnProject", () => {
 		expect(dropProjectOnProject(lane, "y", "c1")?.membership.y).toBeUndefined();
 	});
 
+	it("keeps a collapsed section's own member in it", () => {
+		const rail = {
+			...lane,
+			ids: [...lane.ids, "c2"],
+			membership: { ...lane.membership, c2: "psec::closed" },
+		};
+		expect(dropProjectOnProject(rail, "c1", "c2")?.membership.c1).toBe(
+			"psec::closed",
+		);
+	});
+
 	it("changes nothing when dropped on itself", () => {
 		expect(dropProjectOnProject(lane, "x", "x")).toBeNull();
 	});

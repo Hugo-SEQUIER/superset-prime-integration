@@ -307,7 +307,8 @@ function buildProjectLaneModel(
 /**
  * A project dropped onto another project takes its place and its section:
  * below it when moving down, above it when moving up. A collapsed section
- * never captures, so the dropped project stays visible. Null when the drop
+ * never takes in a new project, so the dropped project stays visible; its
+ * own members (draggable in the icon rail) stay in it. Null when the drop
  * changes nothing.
  */
 export function dropProjectOnProject(
@@ -320,7 +321,11 @@ export function dropProjectOnProject(
 	if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return null;
 	const overSection = lane.membership[String(overId)];
 	const membership = { ...lane.membership };
-	if (overSection && !lane.collapsedSectionIds.has(overSection)) {
+	const canJoin =
+		overSection !== undefined &&
+		(!lane.collapsedSectionIds.has(overSection) ||
+			lane.membership[String(projectId)] === overSection);
+	if (canJoin) {
 		membership[String(projectId)] = overSection;
 	} else {
 		delete membership[String(projectId)];
