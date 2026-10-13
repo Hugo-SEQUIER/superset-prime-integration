@@ -1,5 +1,10 @@
-import { describe, expect, test } from "bun:test";
-import { hasInFlightRowWrite, planExternalSync } from "./useSidebarDnd";
+import { describe, expect, it, test } from "bun:test";
+import {
+	hasInFlightRowWrite,
+	planExternalSync,
+	projectSectionFromNeighbors,
+	toStoredProjectLane,
+} from "./useSidebarDnd";
 
 const dropped = new Set(["a", "b"]);
 
@@ -78,5 +83,37 @@ describe("planExternalSync", () => {
 				prevFingerprint: "pre-drop",
 			}),
 		).toBe("sync");
+	});
+});
+
+describe("projects lane", () => {
+	const ids = ["a", "psec::work", "b", "psec::closed", "c", "d"];
+	const model = {
+		membership: { b: "psec::work", c: "psec::closed" },
+		collapsedSectionIds: new Set(["psec::closed"]),
+	};
+
+	it("a project joins the section whose header or project is above it", () => {
+		expect(
+			projectSectionFromNeighbors(["a", "psec::work", "x"], model, "x"),
+		).toBe("psec::work");
+		expect(projectSectionFromNeighbors(ids, model, "b")).toBe("psec::work");
+		expect(projectSectionFromNeighbors(ids, model, "a")).toBeNull();
+	});
+
+	it("a collapsed section's header doesn't capture a dropped project", () => {
+		expect(
+			projectSectionFromNeighbors(["psec::closed", "x"], model, "x"),
+		).toBeNull();
+	});
+
+	it("unwraps section ids for persistence", () => {
+		expect(
+			toStoredProjectLane(["psec::work", "b", "a"], model.membership),
+		).toEqual([
+			{ type: "section", id: "work" },
+			{ type: "project", id: "b", sectionId: "work" },
+			{ type: "project", id: "a", sectionId: null },
+		]);
 	});
 });

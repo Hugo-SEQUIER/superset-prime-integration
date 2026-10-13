@@ -5724,6 +5724,9 @@ msgstr "Usuń projekt…"
 msgid "Delete script"
 msgstr "Usuń skrypt"
 
+msgid "Delete section"
+msgstr "Usuń sekcję"
+
 msgid "Delete selected workspaces"
 msgstr "Usuń zaznaczone obszary robocze"
 
@@ -10102,6 +10105,9 @@ msgstr "Przenieś do grupy"
 msgid "Move to Right Side"
 msgstr "Przenieś na prawą stronę"
 
+msgid "Move to section"
+msgstr "Przenieś do sekcji"
+
 msgid "Move to Tab"
 msgstr "Przenieś do karty"
 
@@ -10297,6 +10303,9 @@ msgstr "Nowy projekt"
 
 msgid "New push to branch"
 msgstr "Nowy push do gałęzi"
+
+msgid "New section"
+msgstr "Nowa sekcja"
 
 msgid "New session"
 msgstr "Nowa sesja"
@@ -13290,6 +13299,9 @@ msgstr "Usuń z ulubionych"
 msgid "Remove from Queue"
 msgstr "Usuń z kolejki"
 
+msgid "Remove from section"
+msgstr "Usuń z sekcji"
+
 msgid "Remove from sidebar"
 msgstr "Usuń z paska bocznego"
 
@@ -13392,6 +13404,9 @@ msgstr "Zmień nazwę hosta"
 
 msgid "Rename page"
 msgstr "Zmień nazwę strony"
+
+msgid "Rename section"
+msgstr "Zmień nazwę sekcji"
 
 msgid "Rename session"
 msgstr "Zmień nazwę sesji"
@@ -14480,6 +14495,9 @@ msgstr "Secondary"
 msgid "Secret Shift Lead"
 msgstr "Tajny Kierownik Zmiany"
 
+msgid "Section actions"
+msgstr "Akcje sekcji"
+
 msgid "Sections"
 msgstr "Sekcje"
 
@@ -14825,6 +14843,9 @@ msgstr "Ustaw projekt…"
 
 msgid "Set Run"
 msgstr "Ustaw uruchamianie"
+
+msgid "Set section color"
+msgstr "Ustaw kolor sekcji"
 
 msgid "Set this project"
 msgstr "Ustaw ten projekt"

@@ -1,15 +1,9 @@
-import {
-	SortableContext,
-	useSortable,
-	verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { useLingui } from "@lingui/react/macro";
 import { OverflowFadeContainer } from "@superset/ui/overflow-fade-container";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@superset/ui/tooltip";
 import { cn } from "@superset/ui/utils";
 import { useMatchRoute, useNavigate } from "@tanstack/react-router";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { HiOutlineCog6Tooth } from "react-icons/hi2";
 import {
 	SidebarCardSlot,
@@ -45,20 +39,17 @@ import { DashboardSidebarHeader } from "./components/DashboardSidebarHeader";
 import { DashboardSidebarHiddenProjects } from "./components/DashboardSidebarHiddenProjects";
 import { DashboardSidebarHoverCardOverlay } from "./components/DashboardSidebarHoverCardOverlay";
 import { DashboardSidebarPinnedSection } from "./components/DashboardSidebarPinnedSection";
-import { DashboardSidebarProjectSection } from "./components/DashboardSidebarProjectSection";
+import { DashboardSidebarProjectLane } from "./components/DashboardSidebarProjectLane";
 import { DashboardSidebarSectionRenameProvider } from "./components/DashboardSidebarSectionRenameContext";
 import { DashboardSidebarSessionsSection } from "./components/DashboardSidebarSessionsSection";
 import { DashboardSidebarWorkspacesHeader } from "./components/DashboardSidebarWorkspacesHeader";
 import { useGettingStartedCard } from "./components/GettingStartedCard";
 import { useV2SetupScriptCard } from "./components/V2SetupScriptCard";
-import {
-	getBlockedDragProps,
-	useBlockedDragNotice,
-} from "./hooks/useBlockedDragNotice";
+import { useBlockedDragNotice } from "./hooks/useBlockedDragNotice";
 import { useDashboardSidebarData } from "./hooks/useDashboardSidebarData";
 import { useDashboardSidebarShortcuts } from "./hooks/useDashboardSidebarShortcuts";
 import { useMigrateLegacySidebarFolders } from "./hooks/useMigrateLegacySidebarFolders";
-import { useDashboardSidebarDnd } from "./hooks/useSidebarDnd";
+import { useProjectSidebarSections } from "./hooks/useProjectSidebarSections";
 import { DashboardSidebarDndProvider } from "./providers/DashboardSidebarDndProvider";
 import { DashboardSidebarHoverProvider } from "./providers/DashboardSidebarHoverProvider";
 import { DashboardSidebarSelectionProvider } from "./providers/DashboardSidebarSelectionProvider";
@@ -66,88 +57,15 @@ import {
 	DashboardSidebarWorkspaceStatusProvider,
 	type SidebarStatusWorkspaceRef,
 } from "./providers/DashboardSidebarWorkspaceStatusProvider";
-import type {
-	DashboardSidebarProject,
-	DashboardSidebarWorkspace,
-} from "./types";
+import type { DashboardSidebarWorkspace } from "./types";
 import { filterDashboardSidebarProjects } from "./utils/filterDashboardSidebarProjects";
 import { getProjectChildrenWorkspaces } from "./utils/projectChildren";
+import { buildProjectSidebarLane } from "./utils/projectSidebarLane";
 import { sortDashboardSidebarProjects } from "./utils/sortDashboardSidebarProjects";
 
 interface DashboardSidebarProps {
 	isCollapsed?: boolean;
 }
-
-interface SortableProjectWrapperProps {
-	project: DashboardSidebarProject;
-	isCollapsed: boolean;
-	isDragDisabled: boolean;
-	workspaceShortcutLabels: Map<string, string>;
-	onWorkspaceHover: (workspaceId: string) => void | Promise<void>;
-	onToggleCollapse: (projectId: string) => void;
-}
-
-const SortableProjectWrapper = memo(function SortableProjectWrapper({
-	project,
-	isCollapsed,
-	isDragDisabled,
-	workspaceShortcutLabels,
-	onWorkspaceHover,
-	onToggleCollapse,
-}: SortableProjectWrapperProps) {
-	const { activeType } = useDashboardSidebarDnd();
-	const {
-		attributes,
-		listeners,
-		setNodeRef,
-		transform,
-		transition,
-		isDragging,
-	} = useSortable({ id: project.id, disabled: isDragDisabled });
-	const isDraggingProject = activeType === "project";
-
-	// useSortable re-renders this wrapper on every pointer move of any drag in
-	// the sidebar's DndContext; the project section subtree is expensive, so
-	// keep it referentially stable while only the wrapper transform changes.
-	const section = useMemo(
-		() => (
-			<DashboardSidebarProjectSection
-				project={project}
-				isSidebarCollapsed={isCollapsed}
-				isDraggingProject={isDraggingProject}
-				workspaceShortcutLabels={workspaceShortcutLabels}
-				onWorkspaceHover={onWorkspaceHover}
-				onToggleCollapse={onToggleCollapse}
-				dragHandleListeners={listeners}
-				dragHandleAttributes={attributes}
-			/>
-		),
-		[
-			project,
-			isCollapsed,
-			isDraggingProject,
-			workspaceShortcutLabels,
-			onWorkspaceHover,
-			onToggleCollapse,
-			listeners,
-			attributes,
-		],
-	);
-
-	return (
-		<div
-			ref={setNodeRef}
-			style={{
-				transform: CSS.Translate.toString(transform),
-				transition,
-				opacity: isDragging ? 0.5 : undefined,
-			}}
-			{...getBlockedDragProps(isDragDisabled)}
-		>
-			{section}
-		</div>
-	);
-});
 
 export function DashboardSidebar({
 	isCollapsed = false,
@@ -155,6 +73,8 @@ export function DashboardSidebar({
 	const { t } = useLingui();
 	const {
 		groups,
+		projectSections,
+		projectPlacements,
 		hiddenProjects,
 		pinnedWorkspaces,
 		sessionWorkspaces,
@@ -165,11 +85,11 @@ export function DashboardSidebar({
 	} = useDashboardSidebarData();
 	const {
 		deleteSection,
-		reorderProjects,
 		renameSection,
 		setProjectHidden,
 		toggleSectionCollapsed,
 	} = useDashboardSidebarState();
+	const { commitProjectLane } = useProjectSidebarSections();
 	const showHiddenProject = useCallback(
 		(projectId: string) => setProjectHidden(projectId, false),
 		[setProjectHidden],
@@ -196,40 +116,48 @@ export function DashboardSidebar({
 		if (isCollapsed) setProjectFilterQuery("");
 	}, [isCollapsed]);
 
-	// Local project order — syncs from groups, updated on drag end
-	const [projectOrder, setProjectOrder] = useState(() =>
-		groups.map((p) => p.id),
-	);
-	useEffect(() => {
-		setProjectOrder(groups.map((p) => p.id));
-	}, [groups]);
-
-	const orderedGroups = useMemo(() => {
-		const byId = new Map(groups.map((g) => [g.id, g]));
-		return projectOrder
-			.map((id) => byId.get(id))
-			.filter((g): g is DashboardSidebarProject => g != null);
-	}, [groups, projectOrder]);
-
-	// Sort, then filter, as derived views: `orderedGroups` and the persisted
-	// tabOrder stay untouched, so Manual restores the drag order exactly.
+	// Sort, then filter, as derived views: `groups` and the persisted tabOrder
+	// stay untouched, so Manual restores the drag order exactly.
 	const sortedGroups = useMemo(
 		() =>
 			sortMode === "manual"
-				? orderedGroups
-				: sortDashboardSidebarProjects(orderedGroups, sortMode),
-		[sortMode, orderedGroups],
+				? groups
+				: sortDashboardSidebarProjects(groups, sortMode),
+		[sortMode, groups],
 	);
+	const trimmedFilterQuery = projectFilterQuery.trim();
+	const isFilterActive = trimmedFilterQuery !== "";
 	const displayedGroups = useMemo(
 		() => filterDashboardSidebarProjects(sortedGroups, projectFilterQuery),
 		[sortedGroups, projectFilterQuery],
 	);
-	const displayedProjectIds = useMemo(
-		() => displayedGroups.map((project) => project.id),
-		[displayedGroups],
+	// Projects in the order the list shows them, sections included.
+	const sortedLane = useMemo(
+		() =>
+			buildProjectSidebarLane({
+				projects: sortedGroups,
+				sections: projectSections,
+				placements: projectPlacements,
+			}),
+		[sortedGroups, projectSections, projectPlacements],
 	);
-	const trimmedFilterQuery = projectFilterQuery.trim();
-	const isFilterActive = trimmedFilterQuery !== "";
+	const displayedLane = useMemo(
+		() =>
+			buildProjectSidebarLane({
+				projects: displayedGroups,
+				sections: projectSections,
+				placements: projectPlacements,
+				hideEmptySections: isFilterActive,
+			}),
+		[displayedGroups, projectSections, projectPlacements, isFilterActive],
+	);
+	const laneSortedGroups = useMemo(
+		() =>
+			sortedLane.flatMap((item) =>
+				item.type === "project" ? [item.project] : [],
+			),
+		[sortedLane],
+	);
 	// The sort modes only reorder rows inside a project, so the project list
 	// is still the manual order and stays draggable; only a filter, which
 	// hides projects outright, makes a project drop unsafe to commit.
@@ -245,7 +173,7 @@ export function DashboardSidebar({
 	// The filtered view expands matches through derived objects, so a jump
 	// must not toggle the persisted collapse state while it is active.
 	const workspaceShortcutLabels = useDashboardSidebarShortcuts(
-		sortedGroups,
+		laneSortedGroups,
 		sessionWorkspaces,
 		sessionChildren,
 		{ revealCollapsed: !isFilterActive, pinnedWorkspaces },
@@ -307,7 +235,7 @@ export function DashboardSidebar({
 		for (const workspace of sessionWorkspaces) {
 			byId.set(workspace.id, { id: workspace.id, hostId: workspace.hostId });
 		}
-		for (const project of orderedGroups) {
+		for (const project of groups) {
 			for (const workspace of getProjectChildrenWorkspaces(project.children)) {
 				byId.set(workspace.id, { id: workspace.id, hostId: workspace.hostId });
 			}
@@ -321,7 +249,7 @@ export function DashboardSidebar({
 			});
 		}
 		return [...byId.values()];
-	}, [pinnedWorkspaces, sessionWorkspaces, orderedGroups, cloudWorkspaces]);
+	}, [pinnedWorkspaces, sessionWorkspaces, groups, cloudWorkspaces]);
 
 	const { data: session } = authClient.useSession();
 	const userId = session?.user?.id ?? null;
@@ -347,7 +275,7 @@ export function DashboardSidebar({
 				detail: null,
 			});
 		}
-		for (const project of sortedGroups) {
+		for (const project of laneSortedGroups) {
 			for (const workspace of getProjectChildrenWorkspaces(project.children)) {
 				byId.set(workspace.id, {
 					id: workspace.id,
@@ -365,7 +293,7 @@ export function DashboardSidebar({
 	}, [
 		pinnedWorkspaces,
 		sessionWorkspaces,
-		sortedGroups,
+		laneSortedGroups,
 		cloudWorkspaces,
 		userId,
 		cloudSidebarEntries,
@@ -411,14 +339,6 @@ export function DashboardSidebar({
 	const starNagCard = useStarNagCard({ isCollapsed });
 	const hiringCard = useHiringCard({ surface: "v2" });
 
-	const handleReorderProjects = useCallback(
-		(reordered: string[]) => {
-			setProjectOrder(reordered);
-			reorderProjects(reordered);
-		},
-		[reorderProjects],
-	);
-
 	return (
 		<DashboardSidebarSelectionProvider
 			availableWorkspaceIds={selectableWorkspaceIds}
@@ -444,7 +364,8 @@ export function DashboardSidebar({
 								sessionChildren={sessionChildren}
 								isSidebarCollapsed={isCollapsed}
 								workspaceShortcutLabels={workspaceShortcutLabels}
-								onReorderProjects={handleReorderProjects}
+								projectLane={displayedLane}
+								onCommitProjectLane={commitProjectLane}
 								isProjectDragDisabled={isProjectDragDisabled}
 								isChildDragDisabled={isChildDragDisabled}
 							>
@@ -477,7 +398,7 @@ export function DashboardSidebar({
 										/>
 										{!isCollapsed && (
 											<div className="mt-3 first:mt-0">
-												<DashboardSidebarBulkActions projects={orderedGroups}>
+												<DashboardSidebarBulkActions projects={groups}>
 													<DashboardSidebarWorkspacesHeader
 														sortMode={sortMode}
 														onSortModeChange={setSidebarProjectSortMode}
@@ -491,22 +412,14 @@ export function DashboardSidebar({
 											<DashboardSidebarGithubNotice status={githubStatus} />
 										)}
 										{(isCollapsed || !workspacesListCollapsed) && (
-											<SortableContext
-												items={displayedProjectIds}
-												strategy={verticalListSortingStrategy}
-											>
-												{displayedGroups.map((project) => (
-													<SortableProjectWrapper
-														key={project.id}
-														project={project}
-														isCollapsed={isCollapsed}
-														isDragDisabled={isProjectDragDisabled}
-														workspaceShortcutLabels={workspaceShortcutLabels}
-														onWorkspaceHover={refreshWorkspacePullRequest}
-														onToggleCollapse={toggleProjectCollapsed}
-													/>
-												))}
-											</SortableContext>
+											<DashboardSidebarProjectLane
+												lane={displayedLane}
+												isSidebarCollapsed={isCollapsed}
+												isDragDisabled={isProjectDragDisabled}
+												workspaceShortcutLabels={workspaceShortcutLabels}
+												onWorkspaceHover={refreshWorkspacePullRequest}
+												onToggleProjectCollapse={toggleProjectCollapsed}
+											/>
 										)}
 										{!isCollapsed && !workspacesListCollapsed && (
 											<DashboardSidebarHiddenProjects
