@@ -18,14 +18,25 @@ import {
 	useStarNagCard,
 } from "renderer/components/SidebarCardSlot";
 import { UpdatesPill } from "renderer/components/UpdatesPill";
+import { useActiveOrganizationId } from "renderer/hooks/useActiveOrganizationId";
 import { useCloudWorkspaces } from "renderer/hooks/useCloudWorkspaces";
 import { useV2UserPreferences } from "renderer/hooks/useV2UserPreferences";
 import { useHotkeyDisplay } from "renderer/hotkeys";
+import { authClient } from "renderer/lib/auth-client";
 import { OrganizationDropdown } from "renderer/routes/_authenticated/_dashboard/components/TopBar/components/OrganizationDropdown";
+import {
+	EMPTY_CLOUD_SIDEBAR,
+	useCloudSidebarStore,
+} from "renderer/routes/_authenticated/_dashboard/stores/cloudSidebarStore";
+import { isInCloudSidebar } from "renderer/routes/_authenticated/_dashboard/utils/buildCloudSidebar";
 import { useDashboardSidebarState } from "renderer/routes/_authenticated/hooks/useDashboardSidebarState";
 import { useLocalHostService } from "renderer/routes/_authenticated/providers/LocalHostServiceProvider";
 import { useSidebarSectionsCollapseStore } from "renderer/stores/sidebar-sections-collapse";
 import { useV2NotificationStore } from "renderer/stores/v2-notifications";
+import {
+	type ActiveWorkspaceSwitcherOption,
+	DashboardSidebarActiveWorkspaceSwitcher,
+} from "./components/DashboardSidebarActiveWorkspaceSwitcher";
 import { DashboardSidebarBulkActions } from "./components/DashboardSidebarBulkActions";
 import { DashboardSidebarBulkDeleteMount } from "./components/DashboardSidebarBulkDeleteMount";
 import { DashboardSidebarCloudSection } from "./components/DashboardSidebarCloudSection";
@@ -273,19 +284,20 @@ export function DashboardSidebar({
 	// the status provider fans out bindings queries and event subscriptions for
 	// these once, instead of per row. Deliberately unfiltered so subscriptions
 	// don't churn per keystroke.
-	const { workspaces: cloudWorkspaces } = useCloudWorkspaces();
+	const { workspaces: cloudWorkspaces, isFresh: isCloudListFresh } =
+		useCloudWorkspaces();
 	const pruneWorkspaceSeen = useV2NotificationStore(
 		(state) => state.pruneWorkspaceSeen,
 	);
 	useEffect(() => {
-		if (!cloudWorkspaces) return;
+		if (!cloudWorkspaces || !isCloudListFresh) return;
 		const live = new Set(cloudWorkspaces.map((cloud) => cloud.id));
 		for (const id of Object.keys(
 			useV2NotificationStore.getState().workspaceSeenAt,
 		)) {
 			if (!live.has(id)) pruneWorkspaceSeen(id);
 		}
-	}, [cloudWorkspaces, pruneWorkspaceSeen]);
+	}, [cloudWorkspaces, isCloudListFresh, pruneWorkspaceSeen]);
 
 	const statusWorkspaces = useMemo<SidebarStatusWorkspaceRef[]>(() => {
 		const byId = new Map<string, SidebarStatusWorkspaceRef>();
@@ -310,6 +322,54 @@ export function DashboardSidebar({
 		}
 		return [...byId.values()];
 	}, [pinnedWorkspaces, sessionWorkspaces, orderedGroups, cloudWorkspaces]);
+
+	const { data: session } = authClient.useSession();
+	const userId = session?.user?.id ?? null;
+	const organizationId = useActiveOrganizationId();
+	const cloudSidebarEntries = useCloudSidebarStore((state) =>
+		organizationId
+			? (state.byOrganization[organizationId] ?? EMPTY_CLOUD_SIDEBAR).entries
+			: EMPTY_CLOUD_SIDEBAR.entries,
+	);
+	const switcherWorkspaces = useMemo<ActiveWorkspaceSwitcherOption[]>(() => {
+		const byId = new Map<string, ActiveWorkspaceSwitcherOption>();
+		for (const workspace of pinnedWorkspaces) {
+			byId.set(workspace.id, {
+				id: workspace.id,
+				name: workspace.name,
+				detail: workspace.projectName,
+			});
+		}
+		for (const workspace of sessionWorkspaces) {
+			byId.set(workspace.id, {
+				id: workspace.id,
+				name: workspace.name,
+				detail: null,
+			});
+		}
+		for (const project of sortedGroups) {
+			for (const workspace of getProjectChildrenWorkspaces(project.children)) {
+				byId.set(workspace.id, {
+					id: workspace.id,
+					name: workspace.name,
+					detail: project.name,
+				});
+			}
+		}
+		for (const cloud of cloudWorkspaces ?? []) {
+			if (!isInCloudSidebar(cloud, cloudSidebarEntries[cloud.id], userId))
+				continue;
+			byId.set(cloud.id, { id: cloud.id, name: cloud.name, detail: null });
+		}
+		return [...byId.values()];
+	}, [
+		pinnedWorkspaces,
+		sessionWorkspaces,
+		sortedGroups,
+		cloudWorkspaces,
+		userId,
+		cloudSidebarEntries,
+	]);
 
 	const activeV2Project = useMemo(() => {
 		if (!activeV2WorkspaceId) return null;
@@ -371,6 +431,10 @@ export function DashboardSidebar({
 						workspaces={statusWorkspaces}
 						activeWorkspaceId={activeV2WorkspaceId}
 					>
+						<DashboardSidebarActiveWorkspaceSwitcher
+							workspaces={switcherWorkspaces}
+							activeWorkspaceId={activeV2WorkspaceId}
+						/>
 						{/* Port data comes from the single DashboardSidebarPortsProvider in the
 						    dashboard layout, which wraps this sidebar. */}
 						<DashboardSidebarHoverCardOverlay>

@@ -42,7 +42,12 @@ export const PERSISTED_KEY_REGISTRY: ReadonlyArray<
 			"v1-migration-continuity-pending-*",
 			"v1-migration-welcome-pending-*",
 			"v1-migration-followup-pending-*",
+			"v1-migration-attention-dismissed-*",
 		],
+	],
+	[
+		"src/renderer/routes/_authenticated/components/V1FlipNotice/V1TerminalsNotice/V1TerminalsNotice.tsx",
+		["v1-terminals-notice-*"],
 	],
 	["src/renderer/lib/posthog.ts", ["ph_*_posthog", "__ph_opt_in_out_*"]],
 	[
@@ -54,11 +59,15 @@ export const PERSISTED_KEY_REGISTRY: ReadonlyArray<
 		["v2-pane-scroll-state-v1"],
 	],
 	[
+		"src/renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/utils/pendingChatStops/pendingChatStops.ts",
+		["pending-chat-stops-v1"],
+	],
+	[
 		"src/renderer/routes/_authenticated/_dashboard/v2-workspaces/stores/v2WorkspacesFilterStore/v2WorkspacesFilterStore.ts",
 		["v2-workspaces-view"],
 	],
 	[
-		"src/renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/usePaneRegistry/components/ChatV3Pane/components/Composer/Composer.tsx",
+		"src/renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/usePaneRegistry/components/ChatSession/components/Composer/hooks/useComposerDraft/useComposerDraft.ts",
 		["chat-v3-draft:*"],
 	],
 	["src/renderer/stores/changes/store.ts", ["changes-store"]],
@@ -84,10 +93,17 @@ export const PERSISTED_KEY_REGISTRY: ReadonlyArray<
 		["workspace-sidebar-store"],
 	],
 	[
+		"src/renderer/routes/_authenticated/_dashboard/stores/cloudSidebarStore/cloudSidebarStore.ts",
+		["cloud-sidebar"],
+	],
+	[
+		"src/renderer/routes/_authenticated/_dashboard/stores/listDisplayStore/listDisplayStore.ts",
+		["list-display"],
+	],
+	[
 		"src/renderer/stores/sidebar-sections-collapse.ts",
 		["sidebar-workspaces-collapse"],
 	],
-	["src/renderer/stores/v2-local-override.ts", ["v2-local-override-v2"]],
 	[
 		"src/renderer/stores/v2-workspace-create-defaults.ts",
 		["v2-workspace-create-defaults"],
@@ -103,6 +119,10 @@ export const PERSISTED_KEY_REGISTRY: ReadonlyArray<
 	[
 		"src/renderer/stores/terminal-close-confirm/store.ts",
 		["terminal-close-confirm-v1"],
+	],
+	[
+		"src/renderer/stores/automation-failures/store.ts",
+		["automation-failures-v1"],
 	],
 	[
 		"src/renderer/stores/app-version-history/store.ts",
@@ -152,6 +172,14 @@ export const PERSISTED_KEY_REGISTRY: ReadonlyArray<
 		["leaderboard-auto-publish-v2"],
 	],
 	[
+		"src/renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/usePaneRegistry/components/ChatSession/components/Composer/components/ModelPicker/hooks/useFavoriteModels/useFavoriteModels.ts",
+		["chatFavoriteModels"],
+	],
+	[
+		"src/renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/usePaneRegistry/components/ChatPane/utils/savedChatMode/savedChatMode.ts",
+		["chatModeByAgent"],
+	],
+	[
 		"src/renderer/hooks/useAgentModelPreference/useAgentModelPreference.ts",
 		["lastSelectedV2WorkspaceCreateModelByPreset"],
 	],
@@ -186,6 +214,10 @@ export const PERSISTED_KEY_REGISTRY: ReadonlyArray<
 		["lastViewedWorkspaceId"],
 	],
 	[
+		"src/renderer/routes/_authenticated/_dashboard/automations/runs/components/RunRow/RunRow.tsx",
+		["lastViewedWorkspaceId"],
+	],
+	[
 		"src/renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/hooks/usePaneRegistry/components/TerminalPane/richInputOpenStore.ts",
 		["superset.terminalRichInputOpen"],
 	],
@@ -198,15 +230,11 @@ export const PERSISTED_KEY_REGISTRY: ReadonlyArray<
 		["lastSelectedDiffCommentNewAgentConfigId"],
 	],
 	[
-		"src/renderer/routes/_authenticated/_dashboard/tasks/$taskId/components/PropertiesSidebar/components/OpenInWorkspaceV2/OpenInWorkspaceV2.tsx",
-		["lastSelectedV2TaskAgent"],
-	],
-	[
 		"src/renderer/routes/_authenticated/_dashboard/tasks/components/TasksView/components/TasksTopBar/components/RunIssuesInWorkspacePopover/RunIssuesInWorkspacePopover.tsx",
 		["lastSelectedV2IssueBatchAgent"],
 	],
 	[
-		"src/renderer/routes/_authenticated/_dashboard/tasks/components/TasksView/components/TasksTopBar/components/RunInWorkspacePopoverV2/RunInWorkspacePopoverV2.tsx",
+		"src/renderer/routes/_authenticated/_dashboard/tasks/components/RunInWorkspacePopoverV2/RunInWorkspacePopoverV2.tsx",
 		["lastSelectedV2TaskBatchAgent"],
 	],
 	[

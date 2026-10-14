@@ -1,7 +1,8 @@
 import type { RendererContext } from "@superset/panes";
 import { useCallback, useRef } from "react";
-import { useTerminalUrlPolicy } from "renderer/lib/clickPolicy";
+import { useUrlLinkAction } from "renderer/lib/clickPolicy";
 import { PageViewer } from "renderer/routes/_authenticated/_dashboard/components/PageViewer";
+import { useRightPaneLinkTarget } from "renderer/routes/_authenticated/_dashboard/v2-workspace/$workspaceId/providers/RightPaneLinkTargetProvider";
 import type { PagePaneData, PaneViewerData } from "../../../../types";
 import { usePagePaneUi } from "../../hooks/usePagePaneUi";
 import { runUrlLinkAction } from "../../utils/runTerminalLinkAction";
@@ -26,7 +27,8 @@ export function PagePane({
 	onDataChange,
 	onFocus,
 }: PagePaneProps) {
-	const urlPolicy = useTerminalUrlPolicy();
+	const getUrlAction = useUrlLinkAction("4-tier");
+	const rightPane = useRightPaneLinkTarget();
 	const {
 		commentsEnabled,
 		setCommentsEnabled,
@@ -62,11 +64,11 @@ export function PagePane({
 			onLinkClick={(click) => {
 				const action = /^(mailto:|tel:)/i.test(click.url)
 					? "external"
-					: (urlPolicy.getAction(click) ??
+					: (getUrlAction(click, click.url) ??
 						(!click.metaKey && !click.ctrlKey && !click.shiftKey
 							? "pane"
 							: null));
-				if (action) runUrlLinkAction({ store }, click.url, action);
+				if (action) runUrlLinkAction({ store, rightPane }, click.url, action);
 			}}
 			onExitPreview={() => setPreviewVersion(null)}
 		/>

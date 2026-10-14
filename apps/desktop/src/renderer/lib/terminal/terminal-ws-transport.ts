@@ -48,6 +48,9 @@ type TerminalServerMessage =
 	| { type: "error"; message: string; code?: string }
 	| { type: "exit"; exitCode: number; signal: number }
 	| { type: "title"; title: string | null }
+	// The PTY's size: the smallest box across the clients showing it. Sent
+	// after each of our resizes and whenever it changes.
+	| { type: "size"; cols: number; rows: number }
 	// Stream-position anchor from a seq-aware host. Arrives after any
 	// host-synthesized bytes (mode preamble/notice) and before catch-up/live
 	// PTY bytes; sets our counter and arms per-frame counting so the next
@@ -93,6 +96,12 @@ export interface TerminalTransport {
 	 * (the session was re-created under the same id).
 	 */
 	sessionEnded: boolean;
+	/**
+	 * True while the PTY is narrower than this pane because a smaller client
+	 * (another device, or a narrower split) is showing the same terminal.
+	 */
+	narrowedByOtherClient: boolean;
+	narrowedListeners: Set<() => void>;
 
 	/** Internal: invoked once each time the session-ended signal arrives, so
 	 * the owner can drop persisted scrollback immediately. */
@@ -101,6 +110,7 @@ export interface TerminalTransport {
 	 * once on first connect; it re-signs the URL and runs the relay preflight
 	 * before every (re)dial and retries indefinitely. */
 	_socket: RelaySocket | null;
+	_createSocket: typeof createRelaySocket;
 	/** The xterm instance the socket feeds. */
 	_terminal: XTerm | null;
 	/** Internal: disposes the terminal.onData → socket.send wiring. */
@@ -282,6 +292,17 @@ function maybeSurfaceDiagnosis(
 	});
 }
 
+function setNarrowedByOtherClient(
+	transport: TerminalTransport,
+	narrowed: boolean,
+) {
+	if (transport.narrowedByOtherClient === narrowed) return;
+	transport.narrowedByOtherClient = narrowed;
+	for (const listener of transport.narrowedListeners) {
+		listener();
+	}
+}
+
 function markSessionEnded(transport: TerminalTransport) {
 	if (transport.sessionEnded) return;
 	transport.sessionEnded = true;
@@ -359,7 +380,10 @@ export function clearLogs(transport: TerminalTransport) {
 }
 
 export function createTransport(
-	options: { onSessionEnded?: () => void } = {},
+	options: {
+		onSessionEnded?: () => void;
+		createSocket?: typeof createRelaySocket;
+	} = {},
 ): TerminalTransport {
 	return {
 		connectionState: "disconnected",
@@ -371,8 +395,11 @@ export function createTransport(
 		logListeners: new Set(),
 		lastDiagnosis: null,
 		sessionEnded: false,
+		narrowedByOtherClient: false,
+		narrowedListeners: new Set(),
 		_onSessionEnded: options.onSessionEnded ?? null,
 		_socket: null,
+		_createSocket: options.createSocket ?? createRelaySocket,
 		_terminal: null,
 		_onDataDisposable: null,
 		_pendingColorReset: false,
@@ -612,7 +639,7 @@ export function connect(
 		return;
 	}
 
-	const socket = createRelaySocket({
+	const socket = transport._createSocket({
 		// buildUrl/getToken read transport state live, so a URL swap or token
 		// rotation is picked up on the next dial without recreating the socket.
 		buildUrl: () => {
@@ -748,6 +775,11 @@ function attachSocketListeners(
 			return;
 		}
 
+		if (message.type === "size") {
+			setNarrowedByOtherClient(transport, message.cols < terminal.cols);
+			return;
+		}
+
 		if (message.type === "attached") {
 			transport.lastDiagnosis = null;
 			transport._diagnosisLogged = false;
@@ -874,6 +906,7 @@ function attachSocketListeners(
 		// it set would make a later park() misread the ended connection's
 		// counted bytes as uncounted and drop a valid anchor.
 		transport._bytesSinceAttach = false;
+		setNarrowedByOtherClient(transport, false);
 		setConnectionState(transport, "closed");
 		// Per-connection outcome flags; consumed once per close.
 		const connAttached = transport._connAttached;
@@ -1140,4 +1173,6 @@ export function disposeTransport(transport: TerminalTransport) {
 	transport.titleListeners.clear();
 	transport.logs = [];
 	transport.logListeners.clear();
+	transport.narrowedByOtherClient = false;
+	transport.narrowedListeners.clear();
 }

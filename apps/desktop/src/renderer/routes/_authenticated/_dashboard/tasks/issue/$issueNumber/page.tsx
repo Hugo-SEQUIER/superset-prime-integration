@@ -53,20 +53,13 @@ function IssueDetailPage() {
 			tasksSearchFromFilters({
 				tab: search.tab ?? "all",
 				assignee: search.assignee ?? null,
+				label: null,
 				search: search.search ?? "",
 				typeTab: "issues",
 				projectFilters: resolveProjectFilterParams(search.projects, null, []),
-				linearProjectFilter: search.linearProject ?? null,
 				includeClosedIssues: search.state === "all",
 			}),
-		[
-			search.assignee,
-			search.linearProject,
-			search.search,
-			search.projects,
-			search.state,
-			search.tab,
-		],
+		[search.assignee, search.search, search.projects, search.state, search.tab],
 	);
 
 	const { data, isLoading, error, refetch } = useQuery({
@@ -109,7 +102,7 @@ function IssueDetailPage() {
 	const stateIconClass = isClosed ? "text-violet-500" : "text-emerald-500";
 	const header = (
 		<WorkItemDetailHeader
-			itemNumber={data?.number ?? issueNumber}
+			itemLabel={`#${data?.number ?? issueNumber ?? "—"}`}
 			icon={<StateIcon className={`size-4 shrink-0 ${stateIconClass}`} />}
 			backLabel={t({
 				message: "Back to GitHub issues",

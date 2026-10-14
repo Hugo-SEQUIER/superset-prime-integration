@@ -39,7 +39,11 @@ import { isProcessAlive, readPtyDaemonManifest } from "../daemon/manifest.ts";
 import type { HostDb } from "../db/index.ts";
 import { projects, terminalSessions, workspaces } from "../db/schema.ts";
 import type { EventBus } from "../events/index.ts";
-import { portManager } from "../ports/port-manager.ts";
+import { chatPortTerminalIds, portManager } from "../ports/port-manager.ts";
+import {
+	getPathState,
+	inaccessiblePathMessage,
+} from "../runtime/path-state/index.ts";
 import { issueAttributionToken } from "../terminal-agents/attribution-token.ts";
 import { sweepAgentBindingsAfterDaemonLoss } from "../terminal-agents/daemon-loss-sweep.ts";
 import { terminalHarnessSession } from "../terminal-agents/harness-session-ref.ts";
@@ -59,7 +63,7 @@ import {
 	onDaemonDisconnect,
 } from "./daemon-client-singleton.ts";
 import {
-	buildV2TerminalEnv,
+	buildHostLaunchEnv,
 	getShellLaunchArgs,
 	getTerminalBaseEnv,
 	resolveLaunchShell,
@@ -249,6 +253,10 @@ type TerminalServerMessage =
 	  }
 	| { type: "exit"; exitCode: number; signal: number }
 	| { type: "title"; title: string | null }
+	// The PTY's size, the smallest box across visible clients. Sent to every
+	// client when it changes, and to a client after each of its resizes, so a
+	// client larger than the PTY can say why its output is narrower.
+	| { type: "size"; cols: number; rows: number }
 	// Sequence anchor for seq-aware clients (`?seq=` on the attach URL). Sent
 	// once per attach, AFTER any host-synthesized bytes (mode preamble,
 	// restored notice) and BEFORE catch-up/live PTY bytes. The client sets its
@@ -872,6 +880,8 @@ export type TerminalSessionErrorKind =
 	| "WORKSPACE_NOT_FOUND"
 	/** The workspace row exists but its worktree is gone from disk. */
 	| "WORKTREE_GONE"
+	/** The worktree exists but this process may not read it (OS privacy controls). */
+	| "WORKTREE_INACCESSIBLE"
 	/**
 	 * The daemon could not be reached (stalled, restarting, bootstrap
 	 * pending). The supervisor heals these and the session may still come up
@@ -1715,12 +1725,12 @@ function effectiveDims(
 function applyEffectiveDims(
 	session: TerminalSession,
 	options: { force?: boolean } = {},
-) {
-	if (session.exited) return;
+): boolean {
+	if (session.exited) return false;
 	const next = effectiveDims(session);
-	if (!next) return;
+	if (!next) return false;
 	const changed = next.cols !== session.cols || next.rows !== session.rows;
-	if (!changed && !options.force) return;
+	if (!changed && !options.force) return false;
 	if (changed) {
 		session.lastResizeSeq = session.outputSeq;
 		// Whatever follows is laid out for the new size; hidden clients still
@@ -1736,6 +1746,12 @@ function applyEffectiveDims(
 	session.modeTracker.resize(next.cols, next.rows);
 	session.cols = next.cols;
 	session.rows = next.rows;
+	if (changed) broadcastMessage(session, ptySizeMessage(session));
+	return changed;
+}
+
+function ptySizeMessage(session: TerminalSession): TerminalServerMessage {
+	return { type: "size", cols: session.cols, rows: session.rows };
 }
 
 /**
@@ -2779,7 +2795,8 @@ async function disposeSessionUnlocked(
 		closePromise = closeDaemonSessionById(terminalId, "SIGHUP");
 	}
 
-	portManager.unregisterSession(terminalId);
+	if (!chatPortTerminalIds.has(terminalId))
+		portManager.unregisterSession(terminalId);
 
 	const closeResult = closePromise
 		? await closePromise
@@ -3034,7 +3051,14 @@ async function createTerminalSessionUnlocked({
 	if (!workspace) {
 		return { kind: "WORKSPACE_NOT_FOUND", error: "Workspace not found" };
 	}
-	if (!existsSync(workspace.worktreePath)) {
+	const worktreeState = getPathState(workspace.worktreePath);
+	if (worktreeState === "inaccessible") {
+		return {
+			kind: "WORKTREE_INACCESSIBLE",
+			error: inaccessiblePathMessage(workspace.worktreePath),
+		};
+	}
+	if (worktreeState === "missing") {
 		return {
 			kind: "WORKTREE_GONE",
 			error: `Workspace worktree no longer exists: ${workspace.worktreePath}`,
@@ -3080,21 +3104,13 @@ async function createTerminalSessionUnlocked({
 	const shell = resolveLaunchShell(baseEnv);
 	const shellArgs = getShellLaunchArgs({ shell, supersetHomeDir });
 	const ptyEnv = {
-		...buildV2TerminalEnv({
-			baseEnv,
-			shell,
-			supersetHomeDir,
-			organizationId: process.env.ORGANIZATION_ID || "",
+		...buildHostLaunchEnv({
 			themeType,
 			cwd,
 			terminalId,
 			workspaceId,
 			workspacePath: workspace.worktreePath,
 			rootPath,
-			supersetEnv:
-				process.env.NODE_ENV === "development" ? "development" : "production",
-			agentHookPort: process.env.SUPERSET_AGENT_HOOK_PORT || "",
-			agentHookVersion: process.env.SUPERSET_AGENT_HOOK_VERSION || "",
 			hostAgentHookUrl: getHostAgentHookUrl(),
 		}),
 		// Usage-tab default account: provider CLIs typed or preset-launched in
@@ -3421,7 +3437,8 @@ async function createTerminalSessionUnlocked({
 				session.exitSignal = signal ?? 0;
 				const occurredAt = Date.now();
 
-				portManager.unregisterSession(terminalId);
+				if (!chatPortTerminalIds.has(terminalId))
+					portManager.unregisterSession(terminalId);
 
 				db.update(terminalSessions)
 					.set({ status: "exited", endedAt: occurredAt })
@@ -3882,7 +3899,8 @@ export function registerWorkspaceTerminalRoute({
 						const needsForcedNudge =
 							session.pendingRepaintNudge !== null && dimsUnchanged;
 						clearPendingRepaintNudge(session);
-						applyEffectiveDims(session, { force: true });
+						const changed = applyEffectiveDims(session, { force: true });
+						if (!changed) sendMessage(ws, ptySizeMessage(session));
 						if (needsForcedNudge) nudgeRepaint(session);
 					}
 				},

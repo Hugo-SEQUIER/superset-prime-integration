@@ -1,4 +1,5 @@
 import { msg } from "@lingui/core/macro";
+import { formatNumber } from "./format";
 import { i18n } from "./index";
 
 // Catalog entries for user-facing server errors. Each entry pairs a stable
@@ -121,6 +122,13 @@ export const serverErrorMessages: Record<
 				message: `This automation belongs to ${params?.organizationName}. Switch to that organization to open it.`,
 			}),
 		),
+	"serverError.automation.onlyTheOwnerOrAnOrganizationOwner": () =>
+		i18n._(
+			msg({
+				message:
+					"Only the owner or an organization owner can delete this automation",
+			}),
+		),
 	"serverError.automation.automationsRequireThePro": () =>
 		i18n._(
 			msg({
@@ -131,6 +139,39 @@ export const serverErrorMessages: Record<
 		i18n._(
 			msg({
 				message: "Automation not found",
+			}),
+		),
+	"serverError.automation.cloudAgentUnsupported": () =>
+		i18n._(
+			msg({
+				message: "This agent can't run in a cloud workspace",
+			}),
+		),
+	"serverError.automation.rruleBesideTriggers": () =>
+		i18n._(
+			msg({
+				message:
+					"Pass the schedule inside triggers as a schedule trigger, not as rrule beside them",
+			}),
+		),
+	"serverError.automation.cloudNeedsEnvironment": () =>
+		i18n._(
+			msg({
+				message: "A cloud automation needs an environment or a cloud workspace",
+			}),
+		),
+	"serverError.automation.cloudPromptTooLong": (params) => {
+		const max = formatNumber(Number(params?.max));
+		return i18n._(
+			msg({
+				message: `A cloud automation's instructions can be at most ${max} characters`,
+			}),
+		);
+	},
+	"serverError.automation.cloudWorkspaceNotYours": () =>
+		i18n._(
+			msg({
+				message: "An automation can only use a cloud workspace you created",
 			}),
 		),
 	"serverError.automation.continueNeedsPinnedWorkspace": () =>
@@ -271,6 +312,24 @@ export const serverErrorMessages: Record<
 				message: "Could not record environment",
 			}),
 		),
+	"serverError.task.notFound": () =>
+		i18n._(
+			msg({
+				message: "Task not found",
+			}),
+		),
+	"serverError.task.invalidLabel": () =>
+		i18n._(
+			msg({
+				message: "Invalid label",
+			}),
+		),
+	"serverError.task.commentNotYours": () =>
+		i18n._(
+			msg({
+				message: "Only the author can change a comment",
+			}),
+		),
 	"serverError.cloudWorkspace.couldNotRecordCloudWorkspace": () =>
 		i18n._(
 			msg({
@@ -367,6 +426,30 @@ export const serverErrorMessages: Record<
 		i18n._(
 			msg({
 				message: "GitHub installation not found",
+			}),
+		),
+	"serverError.integration.githubSyncRequiresThePro": () =>
+		i18n._(
+			msg({
+				message: "GitHub sync requires the Pro plan.",
+			}),
+		),
+	"serverError.integration.linearIssueNotFound": () =>
+		i18n._(
+			msg({
+				message: "That Linear issue doesn't exist or you can't see it.",
+			}),
+		),
+	"serverError.integration.linearNotConnected": () =>
+		i18n._(
+			msg({
+				message: "Connect your Linear account to use Linear here.",
+			}),
+		),
+	"serverError.integration.linearRateLimited": () =>
+		i18n._(
+			msg({
+				message: "Linear is limiting requests. Try again in a few minutes.",
 			}),
 		),
 	"serverError.integration.notAMemberOfThisOrganization": () =>
@@ -494,6 +577,12 @@ export const serverErrorMessages: Record<
 		i18n._(
 			msg({
 				message: "Members cannot modify roles",
+			}),
+		),
+	"serverError.organization.connectLinearToTrackTasks": () =>
+		i18n._(
+			msg({
+				message: "Connect your Linear account before tracking tasks in Linear.",
 			}),
 		),
 	"serverError.organization.onlyOwnersCanUpdateOrganizationSettings": () =>
@@ -813,10 +902,17 @@ export const serverErrorMessages: Record<
 				message: "Too many support reports. Try again later.",
 			}),
 		),
-	"serverError.task.failedToGenerateAUniqueTask": () =>
+	"serverError.team.taskKeyInvalid": () =>
 		i18n._(
 			msg({
-				message: "Failed to generate a unique task slug",
+				message:
+					"A task key is 1 to 5 letters or numbers and starts with a letter.",
+			}),
+		),
+	"serverError.team.taskKeyTaken": (params) =>
+		i18n._(
+			msg({
+				message: `${params?.key} is already used for tasks in this organization.`,
 			}),
 		),
 	"serverError.team.teamNotFoundInThisOrganization": () =>
@@ -874,10 +970,10 @@ export const serverErrorMessages: Record<
 				message: "Only host owners can change membership",
 			}),
 		),
-	"serverError.host.onlyHostOwnersCanDelete": () =>
+	"serverError.host.onlyHostOwnersOrOrganizationOwnersCanDelete": () =>
 		i18n._(
 			msg({
-				message: "Only host owners can delete this host",
+				message: "Only host owners or organization owners can delete this host",
 			}),
 		),
 	"serverError.host.thisUserRunsTheHostService": () =>
@@ -922,6 +1018,18 @@ export const serverErrorMessages: Record<
 		i18n._(
 			msg({
 				message: "Not a member of this organization",
+			}),
+		),
+	"serverError.workspaces.restoreBranchMissing": (params) =>
+		i18n._(
+			msg({
+				message: `Branch "${params?.branch}" is not on this device or on ${params?.remote}. Only pushed commits can be restored.`,
+			}),
+		),
+	"serverError.workspaces.restoreFetchFailed": (params) =>
+		i18n._(
+			msg({
+				message: `Could not reach ${params?.remote} to look for branch "${params?.branch}". Check your connection and access to ${params?.remote}, then try again.`,
 			}),
 		),
 };

@@ -125,7 +125,7 @@ superset ws create --local --project PROJECT_ID --branch BRANCH --agent claude -
 superset agents create --workspace WORKSPACE_ID --agent claude --prompt "..."
 superset ws list --local
 superset terminals read --workspace WORKSPACE_ID --terminal TERMINAL_ID
-superset ws delete --local WORKSPACE_ID
+superset ws archive --local WORKSPACE_ID
 ```
 
 In order: an isolated workspace with an agent already working in it, another agent in an existing
@@ -137,8 +137,16 @@ of scattering across the project. `ws list --local --tag SOME_TAG` filters to th
 `ws update WORKSPACE_ID --tag ...` retags (`--clear-tags` ungroups). Automation-created workspaces
 are tagged `automation` by default and collect in an "automation" folder.
 
-`superset <command> --help` covers the rest (tasks, automations, hosts, settings). Pass `--json` for
-parsable output; it's on by default under agent environments.
+`superset schema` prints every command, option and argument as JSON; read it with `jq` to learn the
+rest (tasks, automations, hosts, settings) instead of parsing `--help` text. To check only that a
+command exists, the exit code of `superset <command> --help` is enough. Details and the version
+caveat: `docs/agent-tooling.md`.
+
+```bash
+superset schema | jq '.commands[] | select(.path==["terminals"]) | .commands[] | {path, options: [.options[].name]}'
+```
+
+Pass `--json` for parsable output; it's on by default under agent environments.
 
 ## Internationalization
 
@@ -189,10 +197,31 @@ or type it first; a comment is the last resort for what the code genuinely canno
 constraint that lives outside the repo, or a trap the next reader would walk into. Rationale goes
 in the commit message and the PR.
 
+## Tests
+
+CI runs every suite on each push, and the whole run is meant to stay near two minutes. A test
+earns its place by catching a regression quickly.
+
+- **No real waiting.** A test that needs more than bun's default 5 s timeout is too slow. Do not
+  raise the timeout: pass the delay, clock or retry count in and test with a small value. Never
+  wait for a real network or process timeout to fire.
+- **One test per behaviour.** Stress, fuzz and "adversarial" suites that build many real git
+  repositories or processes do not go in the repo. When a probe finds a bug, keep the one
+  regression test for it.
+- **Any order, clean checkout.** Each package's suite runs in one process, in an order that differs
+  between machines, with no root `.env`. Do not `mock.module` a module that other files import for
+  real (`env`, a client, a logger). Give the code its input instead: a parameter, a placeholder in
+  the package's test preload, or a local server.
+- **A flaky test is a broken test.** Fix the cause or delete it. Do not add retries or longer
+  timeouts.
+- **Node-only suites** (real PTYs, `node:test`) are `*.node-test.ts` files run by a turbo task, so
+  they run beside the bun suites and not after them.
+
 ## Further reading
 
-- `.agents/skills/`: CDP UI verification, mobile simulator verification, DB migrations, ticket
-  format, and more. Read the matching `SKILL.md` when a task fits its description.
+- `.agents/skills/`: CDP UI verification, mobile simulator verification, DB migrations, tRPC
+  compatibility, ticket format, and more. Read the matching `SKILL.md` when a task fits its
+  description.
 - `docs/agent-tooling.md`: where commands, skills, and per-agent-CLI config live.
 - `docs/plugins.md`: authoring, publishing, and installing marketplace plugins — the manifest
   contract, the credential proxy, and which files are generated.
@@ -200,6 +229,8 @@ in the commit message and the PR.
   and missing one fails silently.
 - `docs/deploy-workflows.md`: read before writing or testing a deploy workflow step. `run:` has
   no `pipefail` by default, and production secrets exist only in GitHub.
+- `packages/trpc/AGENTS.md`: read before changing any tRPC procedure, in `packages/trpc` or
+  `packages/host-service`. Released desktop, mobile, and CLI builds still call it.
 - `apps/desktop/AGENTS.md`: desktop specifics (notices, persisted renderer state).
 - `apps/mobile/AGENTS.md`: mobile structure and iOS-only scope.
 - `docs/cloud-sandbox-mismatches.md`: where cloud workspace sandboxes don't fit assumptions the

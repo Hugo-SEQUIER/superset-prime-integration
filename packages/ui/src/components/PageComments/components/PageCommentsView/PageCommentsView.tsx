@@ -16,8 +16,12 @@ import {
 	type PageViewportZoom,
 } from "@superset/shared/page-zoom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useJoinPagePresence } from "../../hooks/useJoinPagePresence";
+import { usePageStorageConnect } from "../../hooks/usePageStorageConnect";
+import { type PageToolHost, usePageTools } from "../../hooks/usePageTools";
 import { useComments } from "../../providers/CommentProvider";
 import { PageFrame } from "../PageFrame";
+import { PageToolConsentDialog } from "../PageToolConsentDialog";
 import { CommentBubble, pinClassName } from "./components/CommentBubble";
 import { CommentPopover } from "./components/CommentPopover";
 import {
@@ -28,6 +32,7 @@ import {
 } from "./utils/pinLayout";
 
 interface PageCommentsViewProps {
+	pageId?: string;
 	/** The page's own origin, which serves it with the comment runtime injected. */
 	src: string;
 	title: string;
@@ -40,9 +45,13 @@ interface PageCommentsViewProps {
 	 */
 	onFramePointerDown?: () => void;
 	onLinkClick?: (click: PageLinkClick) => void;
+	storageTicket?: () => Promise<string | null>;
+	presenceUrl?: () => Promise<string | null>;
+	toolHost?: PageToolHost;
 }
 
 export function PageCommentsView({
+	pageId,
 	src,
 	title,
 	initialScrollY,
@@ -50,6 +59,9 @@ export function PageCommentsView({
 	onScrollYChange,
 	onFramePointerDown,
 	onLinkClick,
+	storageTicket,
+	presenceUrl,
+	toolHost,
 }: PageCommentsViewProps) {
 	const onLinkClickRef = useRef(onLinkClick);
 	onLinkClickRef.current = onLinkClick;
@@ -92,6 +104,15 @@ export function PageCommentsView({
 	} = useComments();
 
 	const frameOrigin = useMemo(() => new URL(src).origin, [src]);
+
+	usePageStorageConnect({ frameRef, frameOrigin, ticket: storageTicket });
+	const tools = usePageTools({
+		frameRef,
+		frameOrigin,
+		host: toolHost,
+		pageId,
+	});
+	useJoinPagePresence({ pageId, url: presenceUrl });
 
 	const [lastHoverRect, setLastHoverRect] = useState<FrameRect | null>(null);
 	useEffect(() => {
@@ -432,6 +453,17 @@ export function PageCommentsView({
 					/>
 				) : null}
 			</div>
+
+			<PageToolConsentDialog
+				key={
+					tools.prompt
+						? `${tools.prompt.kind}:${tools.prompt.pluginLabel}`
+						: "none"
+				}
+				pageTitle={title}
+				prompt={tools.prompt}
+				onAnswer={tools.answer}
+			/>
 		</div>
 	);
 }

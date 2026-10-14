@@ -36,13 +36,16 @@ import {
 } from "drizzle-orm";
 import { z } from "zod";
 import { env } from "../../env";
+import { deletePageStorage } from "../../lib/page-store";
 import { deleteObjects, objectExists, presignedGetUrl } from "../../lib/r2";
 import { protectedProcedure, publicProcedure, userError } from "../../trpc";
 import { requireActiveOrgMembership } from "../utils/active-org";
 import { assertPageReadable, assertPageWritable } from "./access";
 import { pageAssetRouter } from "./assets";
+import { withCommentSummaries } from "./comment-summary";
 import { decodePageCursor, encodePageCursor } from "./cursor";
 import { pageUrl } from "./page-url";
+import { pagePreview } from "./preview";
 import { publishPage } from "./publish";
 import { isEntryPathConflict } from "./publish-rules";
 import { pageReportRouter } from "./reports";
@@ -58,6 +61,7 @@ import {
 	type PageListScope,
 	pageCountsSchema,
 	pageFields,
+	pagePreviewSchema,
 	pageRefSchema,
 	publicPageSchema,
 	publishPageSchema,
@@ -74,6 +78,7 @@ import {
 	writePageManifest,
 } from "./storage";
 import { enqueuePageThumbnail } from "./thumbnail";
+import { pageToolRouter } from "./tools/router";
 import { watchState } from "./watch";
 import {
 	claimPageWatch,
@@ -219,6 +224,14 @@ async function latestVersionNumber(pageId: string): Promise<number | null> {
 		.orderBy(desc(pageVersions.version))
 		.limit(1);
 	return row?.version ?? null;
+}
+
+async function wipePageStorage(pageId: string): Promise<void> {
+	try {
+		await deletePageStorage(pageId);
+	} catch (error) {
+		console.error("[pages] hub wipe failed after delete", { pageId, error });
+	}
 }
 
 async function listPageBatch({
@@ -386,6 +399,7 @@ async function listPageBatch({
 export const pageRouter = {
 	assets: pageAssetRouter,
 	...pageReportRouter,
+	...pageToolRouter,
 
 	/**
 	 * A page with no versions yet. Assets stage against a page id, so a first
@@ -494,13 +508,18 @@ export const pageRouter = {
 
 	listPaginated: protectedProcedure
 		.input(listPagesSchema)
-		.query(async ({ ctx, input }) =>
-			listPageBatch({
+		.query(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const batch = await listPageBatch({
 				organizationId: await requireActiveOrgMembership(ctx),
-				userId: ctx.session.user.id,
+				userId,
 				input,
-			}),
-		),
+			});
+			return {
+				...batch,
+				items: await withCommentSummaries(batch.items, userId),
+			};
+		}),
 
 	counts: protectedProcedure
 		.input(pageCountsSchema)
@@ -640,6 +659,16 @@ export const pageRouter = {
 			watch: watchState(page, Date.now()),
 		};
 	}),
+
+	preview: protectedProcedure
+		.input(pagePreviewSchema)
+		.query(async ({ ctx, input }) =>
+			pagePreview({
+				slug: input.slug,
+				organizationId: await requireActiveOrgMembership(ctx),
+				userId: ctx.session.user.id,
+			}),
+		),
 
 	/**
 	 * The page a workspace path anchors to, for the CLI's directory publish:
@@ -980,6 +1009,7 @@ export const pageRouter = {
 						),
 					)
 					.returning({ id: pages.id });
+				if (discarded) await wipePageStorage(page.id);
 				return { id: page.id, deleted: Boolean(discarded) };
 			}
 
@@ -1042,6 +1072,8 @@ export const pageRouter = {
 					error,
 				});
 			}
+
+			await wipePageStorage(page.id);
 
 			return { id: page.id, deleted: true };
 		}),

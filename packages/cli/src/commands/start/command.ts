@@ -1,19 +1,20 @@
 import * as p from "@clack/prompts";
 import { boolean, CLIError, number, string } from "@superset/cli-framework";
 import { command } from "../../lib/command";
-import { SUPERSET_CONFIG_PATH } from "../../lib/config";
+import { getSupersetConfigPath } from "../../lib/config";
 import { waitForUnresponsiveHost } from "../../lib/host/liveness";
 import {
 	isProcessAlive,
 	readManifest,
 	removeManifestIfOwnedBy,
 } from "../../lib/host/manifest";
+import { isManifestLive } from "../../lib/host/manifest-liveness";
 import {
 	describeHostExit,
 	type SpawnHostResult,
 	spawnHostService,
 } from "../../lib/host/spawn";
-import { terminateHost } from "../../lib/host/terminate";
+import { terminateProcess } from "../../lib/host/terminate";
 import { resolveOrganization } from "../../lib/resolve-org";
 
 export default command({
@@ -22,12 +23,19 @@ export default command({
 	options: {
 		daemon: boolean().desc("Run in background"),
 		autoUpdate: boolean().desc(
-			"Automatically update and restart this host hourly",
+			"Automatically update and restart this host hourly (requires --daemon)",
 		),
 		port: number().desc("Port to listen on"),
 		org: string().desc("Organization to register under (id, slug, or name)"),
 	},
 	run: async ({ ctx, options, signal }) => {
+		if (options.autoUpdate && !options.daemon) {
+			throw new CLIError(
+				"--auto-update requires --daemon because updates replace the host process.",
+				"Run superset start --daemon --auto-update.",
+			);
+		}
+
 		const orgs = await ctx.api.user.myOrganizations.query();
 		const organization = await resolveOrganization(
 			orgs,
@@ -35,11 +43,16 @@ export default command({
 		);
 
 		const existing = readManifest(organization.id);
-		if (existing && isProcessAlive(existing.pid)) {
-			return {
-				data: { pid: existing.pid, endpoint: existing.endpoint },
-				message: `Host service already running for ${organization.name} (pid ${existing.pid})`,
-			};
+		if (existing) {
+			if (await isManifestLive(existing)) {
+				return {
+					data: { pid: existing.pid, endpoint: existing.endpoint },
+					message: `Host service already running for ${organization.name} (pid ${existing.pid})`,
+				};
+			}
+			// A live pid alone doesn't prove it's ours — OSes recycle pids, and a
+			// leftover manifest can point at an unrelated process.
+			removeManifestIfOwnedBy(organization.id, existing.pid);
 		}
 
 		p.intro(`superset start (${organization.name})`);
@@ -52,7 +65,7 @@ export default command({
 				organizationId: organization.id,
 				sessionToken: ctx.bearer,
 				authConfigPath:
-					ctx.authSource === "oauth" ? SUPERSET_CONFIG_PATH : undefined,
+					ctx.authSource === "oauth" ? getSupersetConfigPath() : undefined,
 				api: ctx.api,
 				port: options.port,
 				daemon: options.daemon ?? false,
@@ -111,7 +124,7 @@ export default command({
 			);
 		}
 
-		await terminateHost(running.pid, { exited: running.exited });
+		await terminateProcess(running.pid, { exited: running.exited });
 		removeManifestIfOwnedBy(organization.id, running.pid);
 
 		return {

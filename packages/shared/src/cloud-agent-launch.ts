@@ -1,25 +1,5 @@
+import { z } from "zod";
 import { HOST_AGENT_PRESETS } from "./host-agent-presets";
-
-/**
- * What a cloud workspace launches on first boot: a built-in agent and its
- * prompt. The API validates it, provisioning hands it to the sandbox as
- * environment, and host-service runs it the way a local host runs an agent
- * for a new workspace. Custom agents follow once they live in the cloud
- * (SUPER-2127); until then only the built-in presets are launchable here.
- */
-export interface CloudAgentLaunch {
-	agent: string;
-	prompt: string;
-	model?: string;
-	effort?: string;
-	mode?: string;
-	/**
-	 * Cloud uploads the agent is launched with. A sandbox has no host to write
-	 * them to at create time, so the ids travel and the box pulls the bytes
-	 * itself once host-service is up.
-	 */
-	attachmentFileIds?: string[];
-}
 
 /**
  * The presets a sandbox can actually run: the CLIs the image installs
@@ -32,9 +12,36 @@ export const CLOUD_AGENT_IDS: readonly string[] = HOST_AGENT_PRESETS.filter(
 	(preset) => INSTALLED_IN_SANDBOX.has(preset.presetId),
 ).map((preset) => preset.presetId);
 
+/** The prompt reaches host-service as one command-line argument, and the kernel limits its size. */
+export const CLOUD_AGENT_PROMPT_MAX_LENGTH = 20_000;
+
 export function isCloudAgentId(id: string): boolean {
 	return CLOUD_AGENT_IDS.includes(id);
 }
+
+/**
+ * What a cloud workspace launches on first boot: a built-in agent and its
+ * prompt. The API validates it, provisioning hands it to the sandbox as
+ * environment, and host-service runs it the way a local host runs an agent
+ * for a new workspace. Custom agents follow once they live in the cloud
+ * (SUPER-2127); until then only the built-in presets are launchable here.
+ */
+export const cloudAgentLaunchSchema = z.object({
+	agent: z.string().refine(isCloudAgentId, "unknown cloud agent"),
+	prompt: z.string().max(CLOUD_AGENT_PROMPT_MAX_LENGTH),
+	model: z.string().min(1).optional(),
+	effort: z.string().min(1).optional(),
+	mode: z.string().min(1).optional(),
+	/**
+	 * Cloud uploads the agent is launched with. A sandbox has no host to write
+	 * them to at create time, so the ids travel and the box pulls the bytes
+	 * itself once host-service is up.
+	 */
+	attachmentFileIds: z.array(z.string().uuid()).max(10).optional(),
+	surface: z.enum(["terminal", "chat"]).optional(),
+});
+
+export type CloudAgentLaunch = z.infer<typeof cloudAgentLaunchSchema>;
 
 const ENV = {
 	agent: "SUPERSET_SANDBOX_AGENT",
@@ -43,6 +50,7 @@ const ENV = {
 	effort: "SUPERSET_SANDBOX_AGENT_EFFORT",
 	mode: "SUPERSET_SANDBOX_AGENT_MODE",
 	attachments: "SUPERSET_SANDBOX_AGENT_ATTACHMENTS",
+	surface: "SUPERSET_SANDBOX_AGENT_SURFACE",
 } as const;
 
 /** Every variable the launch travels in; stripped when a sandbox is promoted. */
@@ -62,6 +70,7 @@ export function cloudAgentLaunchToEnv(
 		...(launch.attachmentFileIds?.length
 			? { [ENV.attachments]: launch.attachmentFileIds.join(",") }
 			: {}),
+		...(launch.surface ? { [ENV.surface]: launch.surface } : {}),
 	};
 }
 
@@ -77,6 +86,7 @@ export function readCloudAgentLaunch(
 		effort: env[ENV.effort] || undefined,
 		mode: env[ENV.mode] || undefined,
 		attachmentFileIds: splitAttachmentIds(env[ENV.attachments]),
+		surface: env[ENV.surface] === "chat" ? "chat" : undefined,
 	};
 }
 
