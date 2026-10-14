@@ -77,9 +77,8 @@ interface AgentSetupDefinition {
 	/**
 	 * Removes Superset's footprint from the agent's global config when the
 	 * user disables its hook integration. Wrappers and scripts under
-	 * ~/.superset/ usually stay — they are Superset-owned and inert outside its
-	 * terminals. Prime Agent removes its extension to revoke captured bridges.
-	 * Absent when the agent has no global footprint (Copilot,
+	 * ~/.superset/ stay — they are Superset-owned and inert outside its
+	 * terminals. Absent when the agent has no global footprint (Copilot,
 	 * OpenCode).
 	 */
 	teardown?: readonly (() => void)[];

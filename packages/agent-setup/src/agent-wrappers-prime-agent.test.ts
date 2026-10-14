@@ -5,8 +5,8 @@ import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
-	readFileSync,
 	readdirSync,
+	readFileSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
@@ -60,6 +60,7 @@ exit "\${PRIME_TEST_EXIT_CODE:-0}"
 					...process.env,
 					SUPERSET_TERMINAL_ID: terminalId,
 					SUPERSET_AGENT_ID: "",
+					SUPERSET_HOOK_VERSION: "2",
 					PATH: `${path.join(home, "bin")}:${realBin}:${process.env.PATH}`,
 				},
 			});
@@ -68,9 +69,9 @@ exit "\${PRIME_TEST_EXIT_CODE:-0}"
 		const args = inTerminal.stdout.trim().split("\n");
 		bridgePath = args[1] ?? "";
 		expect(args).toEqual(["--extension", bridgePath, "--resume", "session-1"]);
-		expect(readFileSync(bridgePath, "utf8")).toContain(
-			getPrimeAgentExtensionPath(),
-		);
+		const bridge = readFileSync(bridgePath, "utf8");
+		expect(bridge).toContain(getPrimeAgentExtensionPath());
+		expect(bridge).toContain('"SUPERSET_HOOK_VERSION":"2"');
 		expect(run("").stdout.trim().split("\n")).toEqual([
 			"--resume",
 			"session-1",
@@ -106,7 +107,7 @@ exit "\${PRIME_TEST_EXIT_CODE:-0}"
 				"--resume",
 				"session-1",
 			]);
-			expect(existsSync(path.dirname(args[1]!))).toBe(false);
+			expect(existsSync(path.dirname(args[1] ?? ""))).toBe(false);
 			expect(readdirSync(path.join(home, "hooks")).sort()).toEqual(before);
 			expect(existsSync(bridgePath)).toBe(true);
 			expect(existsSync(`${bridgePath}.loaded`)).toBe(true);
