@@ -242,6 +242,24 @@ console.log(JSON.stringify(readFileSync(${JSON.stringify(events)}, "utf8").trim(
 		expect(JSON.parse(result.stdout.trim())).toEqual(["Start", "Failed"]);
 	});
 
+	it("still loads when the loaded marker cannot be written", () => {
+		const script = `import extension from ${JSON.stringify(getPrimeAgentExtensionPath())};
+const registered = [];
+extension({ on(name) { registered.push(name); }, registerTool(tool) { registered.push(tool.name); } }, {
+  SUPERSET_TERMINAL_ID: "terminal-1",
+  SUPERSET_HOME_DIR: ${JSON.stringify(home)},
+  SUPERSET_PRIME_BRIDGE_PATH: ${JSON.stringify(path.join(home, "missing", "bridge.mjs"))},
+});
+console.log(JSON.stringify(registered));`;
+		const result = spawnSync(
+			process.execPath,
+			["--input-type=module", "-e", script],
+			{ encoding: "utf8", env: process.env },
+		);
+		expect(result.status).toBe(0);
+		expect(JSON.parse(result.stdout.trim())).toContain("superset_ask_user");
+	});
+
 	it("revokes loaded hooks, queued events, and input when the extension is removed", () => {
 		const events = path.join(home, "events.jsonl");
 		writeFileSync(events, "");

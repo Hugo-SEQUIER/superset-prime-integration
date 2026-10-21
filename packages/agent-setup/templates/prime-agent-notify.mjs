@@ -14,9 +14,11 @@ export default function (pi, env) {
 	if (!existsSync(extensionFile)) return;
 
 	if (env.SUPERSET_PRIME_BRIDGE_PATH) {
-		writeFileSync(`${env.SUPERSET_PRIME_BRIDGE_PATH}.loaded`, "", {
-			mode: 0o600,
-		});
+		try {
+			writeFileSync(`${env.SUPERSET_PRIME_BRIDGE_PATH}.loaded`, "", {
+				mode: 0o600,
+			});
+		} catch {}
 	}
 
 	const notify = `${env.SUPERSET_HOME_DIR}/hooks/notify.sh`;
