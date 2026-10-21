@@ -18,7 +18,10 @@ import {
 } from "react-icons/vsc";
 import { useOpenNewWorkspaceForLocalProject } from "renderer/hooks/useOpenNewWorkspace";
 import { useFolderFirstImport } from "renderer/routes/_authenticated/_dashboard/components/AddRepositoryModals/hooks/useFolderFirstImport";
-import type { SidebarProjectSortMode } from "renderer/routes/_authenticated/providers/CollectionsProvider/dashboardSidebarLocal/schema";
+import type {
+	SidebarProjectHostFilter,
+	SidebarProjectSortMode,
+} from "renderer/routes/_authenticated/providers/CollectionsProvider/dashboardSidebarLocal/schema";
 import {
 	useOpenEmptyProjectModal,
 	useOpenNewProjectModal,
@@ -35,6 +38,9 @@ import { useProjectFilterExpanded } from "./hooks/useProjectFilterExpanded";
 interface DashboardSidebarWorkspacesHeaderProps {
 	sortMode: SidebarProjectSortMode;
 	onSortModeChange: (mode: SidebarProjectSortMode) => void;
+	/** Null hides the host filter (cloud rows are not inline). */
+	hostFilter: SidebarProjectHostFilter | null;
+	onHostFilterChange: (filter: SidebarProjectHostFilter) => void;
 	filterQuery: string;
 	onFilterQueryChange: (query: string) => void;
 }
@@ -42,6 +48,8 @@ interface DashboardSidebarWorkspacesHeaderProps {
 export function DashboardSidebarWorkspacesHeader({
 	sortMode,
 	onSortModeChange,
+	hostFilter,
+	onHostFilterChange,
 	filterQuery,
 	onFilterQueryChange,
 }: DashboardSidebarWorkspacesHeaderProps) {
@@ -78,7 +86,7 @@ export function DashboardSidebarWorkspacesHeader({
 	const { requestSectionRename } = useDashboardSidebarSectionRename();
 	const handleNewSection = () => {
 		if (isSectionCollapsed) toggleSectionCollapsed("workspaces");
-		// A filtered list hides empty sections, so the new one could not show.
+		// A search hides empty sections, so the new one could not show.
 		onFilterQueryChange("");
 		setIsFilterExpanded(false);
 		requestSectionRename(createProjectSection());
@@ -145,6 +153,8 @@ export function DashboardSidebarWorkspacesHeader({
 			<DashboardSidebarProjectsSortMenu
 				sortMode={sortMode}
 				onSortModeChange={onSortModeChange}
+				hostFilter={hostFilter}
+				onHostFilterChange={onHostFilterChange}
 			/>
 			<Tooltip delayDuration={700}>
 				<TooltipTrigger asChild>

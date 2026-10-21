@@ -22,10 +22,13 @@ import {
 	LuTrash2,
 } from "react-icons/lu";
 import { useV2UserPreferences } from "renderer/hooks/useV2UserPreferences";
+import type { DashboardSidebarProject } from "../../../../types";
 import { useProjectSectionMenu } from "./hooks/useProjectSectionMenu";
 
 interface DashboardSidebarProjectContextMenuProps {
 	projectId: string;
+	/** A `cloud-repo` stand-in has no checkout, settings or name of its own. */
+	kind?: DashboardSidebarProject["kind"];
 	projectSectionId: string | null;
 	/** The icon rail: section headers aren't shown, so nothing to rename in. */
 	isSidebarCollapsed: boolean;
@@ -42,6 +45,7 @@ interface DashboardSidebarProjectContextMenuProps {
 
 export function DashboardSidebarProjectContextMenu({
 	projectId,
+	kind,
 	projectSectionId,
 	isSidebarCollapsed,
 	onCreateSection,
@@ -55,6 +59,7 @@ export function DashboardSidebarProjectContextMenu({
 }: DashboardSidebarProjectContextMenuProps) {
 	const { preferences, setTagFolderHidden } = useV2UserPreferences();
 	const hiddenTags = preferences.hiddenTagFolders[projectId] ?? [];
+	const hasCheckout = kind !== "cloud-repo";
 	const { sections, moveToSection, moveToNewSection } = useProjectSectionMenu({
 		projectId,
 		renameNewSection: !isSidebarCollapsed,
@@ -63,23 +68,27 @@ export function DashboardSidebarProjectContextMenu({
 		<ContextMenu>
 			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
 			<ContextMenuContent onCloseAutoFocus={(event) => event.preventDefault()}>
-				<ContextMenuItem onSelect={onRename}>
-					<LuPencil className="size-4 mr-2" />
-					<Trans>Rename</Trans>
-				</ContextMenuItem>
-				<ContextMenuSeparator />
-				<ContextMenuItem onSelect={onOpenInFinder}>
-					<LuFolderOpen className="size-4 mr-2" />
-					<Trans>Open in Finder</Trans>
-				</ContextMenuItem>
-				<ContextMenuItem onSelect={onOpenSettings}>
-					<LuSettings className="size-4 mr-2" />
-					<Trans>Project Settings</Trans>
-				</ContextMenuItem>
-				<ContextMenuItem onSelect={onCreateSection}>
-					<LuFolderPlus className="size-4 mr-2" />
-					<Trans>New group</Trans>
-				</ContextMenuItem>
+				{hasCheckout && (
+					<>
+						<ContextMenuItem onSelect={onRename}>
+							<LuPencil className="size-4 mr-2" />
+							<Trans>Rename</Trans>
+						</ContextMenuItem>
+						<ContextMenuSeparator />
+						<ContextMenuItem onSelect={onOpenInFinder}>
+							<LuFolderOpen className="size-4 mr-2" />
+							<Trans>Open in Finder</Trans>
+						</ContextMenuItem>
+						<ContextMenuItem onSelect={onOpenSettings}>
+							<LuSettings className="size-4 mr-2" />
+							<Trans>Project Settings</Trans>
+						</ContextMenuItem>
+						<ContextMenuItem onSelect={onCreateSection}>
+							<LuFolderPlus className="size-4 mr-2" />
+							<Trans>New group</Trans>
+						</ContextMenuItem>
+					</>
+				)}
 				<ContextMenuSub>
 					<ContextMenuSubTrigger>
 						<LuArrowRightLeft className="size-4 mr-2" />
@@ -114,28 +123,32 @@ export function DashboardSidebarProjectContextMenu({
 						<Trans>Remove from section</Trans>
 					</ContextMenuItem>
 				)}
-				{hiddenTags.length > 0 ? (
-					<ContextMenuSub>
-						<ContextMenuSubTrigger>
-							<LuEye className="size-4 mr-2" />
-							<Trans>Hidden folders</Trans>
-						</ContextMenuSubTrigger>
-						<ContextMenuSubContent className="w-48 max-h-80 overflow-y-auto">
-							{hiddenTags.map((tag) => (
-								<ContextMenuItem
-									key={tag}
-									onSelect={() => setTagFolderHidden(projectId, tag, false)}
-								>
-									{tag}
-								</ContextMenuItem>
-							))}
-						</ContextMenuSubContent>
-					</ContextMenuSub>
-				) : null}
-				<ContextMenuItem onSelect={onImportWorktrees}>
-					<LuFolderInput className="size-4 mr-2" />
-					<Trans>Import untracked worktrees</Trans>
-				</ContextMenuItem>
+				{hasCheckout && (
+					<>
+						{hiddenTags.length > 0 ? (
+							<ContextMenuSub>
+								<ContextMenuSubTrigger>
+									<LuEye className="size-4 mr-2" />
+									<Trans>Hidden folders</Trans>
+								</ContextMenuSubTrigger>
+								<ContextMenuSubContent className="w-48 max-h-80 overflow-y-auto">
+									{hiddenTags.map((tag) => (
+										<ContextMenuItem
+											key={tag}
+											onSelect={() => setTagFolderHidden(projectId, tag, false)}
+										>
+											{tag}
+										</ContextMenuItem>
+									))}
+								</ContextMenuSubContent>
+							</ContextMenuSub>
+						) : null}
+						<ContextMenuItem onSelect={onImportWorktrees}>
+							<LuFolderInput className="size-4 mr-2" />
+							<Trans>Import untracked worktrees</Trans>
+						</ContextMenuItem>
+					</>
+				)}
 				<ContextMenuSeparator />
 				<ContextMenuItem onSelect={onHide}>
 					<LuEyeOff className="size-4 mr-2" />

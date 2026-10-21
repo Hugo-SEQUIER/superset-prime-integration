@@ -20,9 +20,11 @@ export type {
 	ComposerMentionProvider,
 	ComposerMentionSource,
 	ComposerPanelContent,
+	ComposerPanelControls,
 	PromptInputAttachment,
 	PromptInputCommand,
 	PromptInputDictation,
+	PromptInputDictationError,
 	PromptInputHandle,
 	PromptInputProps,
 	PromptInputSubmitPayload,
@@ -46,6 +48,7 @@ export function PromptInput({
 	defaultValue,
 	findChips,
 	onChange,
+	collapseLargePastes = false,
 	onSubmit,
 	onStop,
 	header,
@@ -85,6 +88,7 @@ export function PromptInput({
 					defaultValue={defaultValue}
 					findChips={findChips}
 					onChange={onChange}
+					collapseLargePastes={collapseLargePastes}
 					onSubmit={onSubmit}
 					onStop={onStop}
 					header={header}

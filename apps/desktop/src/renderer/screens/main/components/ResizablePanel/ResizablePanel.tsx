@@ -1,5 +1,5 @@
 import { cn } from "@superset/ui/utils";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface ResizablePanelProps {
 	/** The content to render inside the panel */
@@ -29,6 +29,10 @@ interface ResizablePanelProps {
 	clampWidth?: boolean;
 	/** Callback when the resize handle is double-clicked */
 	onDoubleClickHandle?: () => void;
+	/** How long the width eases to the value set by a double-click. */
+	resetDurationMs?: number;
+	/** Call `onWidthChange` once on release instead of on every drag frame. */
+	commitOnRelease?: boolean;
 	/**
 	 * Renders as a flexible, full-width panel with no resize handle instead
 	 * of a fixed-width one — for a sibling pane that can be collapsed, so
@@ -51,8 +55,34 @@ export function ResizablePanel({
 	className,
 	clampWidth = true,
 	onDoubleClickHandle,
+	resetDurationMs = 300,
 	disabled = false,
+	commitOnRelease = false,
 }: ResizablePanelProps) {
+	const [draftWidth, setDraftWidth] = useState<number | null>(null);
+	const [committedWidth, setCommittedWidth] = useState(width);
+	const draftWidthRef = useRef<number | null>(null);
+	// The committed width arrives through `width`; hold the draft until then so
+	// the panel does not flash back to its old width for a frame.
+	if (width !== committedWidth) {
+		setCommittedWidth(width);
+		if (!isResizing) setDraftWidth(null);
+	}
+	useEffect(() => {
+		if (draftWidth === null) draftWidthRef.current = null;
+	}, [draftWidth]);
+	const shownWidth = draftWidth ?? width;
+	const [resetting, setResetting] = useState(false);
+	useEffect(() => {
+		if (!resetting) return;
+		const timer = setTimeout(() => setResetting(false), resetDurationMs);
+		return () => clearTimeout(timer);
+	}, [resetting, resetDurationMs]);
+	const handleDoubleClick = useCallback(() => {
+		if (!onDoubleClickHandle) return;
+		setResetting(true);
+		onDoubleClickHandle();
+	}, [onDoubleClickHandle]);
 	const startXRef = useRef(0);
 	const startWidthRef = useRef(0);
 	const pendingWidthRef = useRef<number | null>(null);
@@ -62,17 +92,20 @@ export function ResizablePanel({
 		const pendingWidth = pendingWidthRef.current;
 		pendingWidthRef.current = null;
 		if (pendingWidth === null) return;
-		onWidthChange(pendingWidth);
-	}, [onWidthChange]);
+		if (commitOnRelease) {
+			draftWidthRef.current = pendingWidth;
+			setDraftWidth(pendingWidth);
+		} else onWidthChange(pendingWidth);
+	}, [onWidthChange, commitOnRelease]);
 
 	const handleMouseDown = useCallback(
 		(e: React.MouseEvent) => {
 			e.preventDefault();
 			startXRef.current = e.clientX;
-			startWidthRef.current = width;
+			startWidthRef.current = shownWidth;
 			onResizingChange(true);
 		},
-		[width, onResizingChange],
+		[shownWidth, onResizingChange],
 	);
 
 	const handleMouseMove = useCallback(
@@ -106,11 +139,21 @@ export function ResizablePanel({
 			rafIdRef.current = null;
 		}
 		flushPendingWidth();
+		if (commitOnRelease && draftWidthRef.current !== null) {
+			onWidthChange(draftWidthRef.current);
+		}
 		onResizingChange(false);
-	}, [isResizing, onResizingChange, flushPendingWidth]);
+	}, [
+		isResizing,
+		onResizingChange,
+		flushPendingWidth,
+		commitOnRelease,
+		onWidthChange,
+	]);
 
 	useEffect(() => {
 		if (isResizing) {
+			setResetting(false);
 			document.addEventListener("mousemove", handleMouseMove);
 			document.addEventListener("mouseup", handleMouseUp);
 			document.body.style.userSelect = "none";
@@ -136,9 +179,20 @@ export function ResizablePanel({
 				"relative h-full overflow-hidden border-border",
 				disabled ? "flex-1" : "shrink-0",
 				!disabled && (handleSide === "right" ? "border-r" : "border-l"),
+				resetting &&
+					"transition-[width] ease-[ease] motion-reduce:transition-none",
 				className,
 			)}
-			style={disabled ? undefined : { width }}
+			style={
+				disabled
+					? undefined
+					: {
+							width: shownWidth,
+							transitionDuration: resetting
+								? `${resetDurationMs}ms`
+								: undefined,
+						}
+			}
 		>
 			{children}
 			{!disabled && (
@@ -146,12 +200,12 @@ export function ResizablePanel({
 				<div
 					role="separator"
 					aria-orientation="vertical"
-					aria-valuenow={width}
+					aria-valuenow={shownWidth}
 					aria-valuemin={minWidth}
 					aria-valuemax={maxWidth}
 					tabIndex={0}
 					onMouseDown={handleMouseDown}
-					onDoubleClick={onDoubleClickHandle}
+					onDoubleClick={handleDoubleClick}
 					className={cn(
 						"absolute top-0 w-5 h-full cursor-col-resize z-10",
 						"after:absolute after:top-0 after:w-1 after:h-full after:transition-colors",
