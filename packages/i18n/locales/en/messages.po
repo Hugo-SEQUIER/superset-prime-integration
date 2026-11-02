@@ -6630,6 +6630,9 @@ msgstr "Delete routine"
 msgid "Delete script"
 msgstr "Delete script"
 
+msgid "Delete section"
+msgstr "Delete section"
+
 msgid "Delete selected workspaces"
 msgstr "Delete selected workspaces"
 
@@ -11600,6 +11603,9 @@ msgstr "Move to group…"
 msgid "Move to Right Side"
 msgstr "Move to Right Side"
 
+msgid "Move to section"
+msgstr "Move to section"
+
 msgid "Move to Tab"
 msgstr "Move to Tab"
 
@@ -11826,6 +11832,9 @@ msgstr "New project"
 
 msgid "New push to branch"
 msgstr "New push to branch"
+
+msgid "New section"
+msgstr "New section"
 
 msgid "New session"
 msgstr "New session"
@@ -15412,6 +15421,9 @@ msgstr "Remove from group"
 msgid "Remove from Queue"
 msgstr "Remove from Queue"
 
+msgid "Remove from section"
+msgstr "Remove from section"
+
 msgid "Remove from sidebar"
 msgstr "Remove from sidebar"
 
@@ -15526,6 +15538,9 @@ msgstr "Rename host"
 
 msgid "Rename page"
 msgstr "Rename page"
+
+msgid "Rename section"
+msgstr "Rename section"
 
 msgid "Rename session"
 msgstr "Rename session"
@@ -16714,6 +16729,9 @@ msgstr "Secondary"
 msgid "Secret Shift Lead"
 msgstr "Secret Shift Lead"
 
+msgid "Section actions"
+msgstr "Section actions"
+
 msgid "Sections"
 msgstr "Sections"
 
@@ -17106,6 +17124,9 @@ msgstr "Set project…"
 
 msgid "Set Run"
 msgstr "Set Run"
+
+msgid "Set section color"
+msgstr "Set section color"
 
 msgid "Set this project"
 msgstr "Set this project"

@@ -6630,6 +6630,9 @@ msgstr "Hapus rutinitas"
 msgid "Delete script"
 msgstr "Hapus skrip"
 
+msgid "Delete section"
+msgstr "Hapus bagian"
+
 msgid "Delete selected workspaces"
 msgstr "Hapus workspace yang dipilih"
 
@@ -11600,6 +11603,9 @@ msgstr "Pindahkan ke grup…"
 msgid "Move to Right Side"
 msgstr "Pindahkan ke kanan"
 
+msgid "Move to section"
+msgstr "Pindahkan ke bagian"
+
 msgid "Move to Tab"
 msgstr "Pindahkan ke Tab"
 
@@ -11826,6 +11832,9 @@ msgstr "Proyek baru"
 
 msgid "New push to branch"
 msgstr "Push baru ke branch"
+
+msgid "New section"
+msgstr "Bagian baru"
 
 msgid "New session"
 msgstr "Sesi baru"
@@ -15412,6 +15421,9 @@ msgstr "Keluarkan dari grup"
 msgid "Remove from Queue"
 msgstr "Keluarkan dari Antrean"
 
+msgid "Remove from section"
+msgstr "Keluarkan dari bagian"
+
 msgid "Remove from sidebar"
 msgstr "Hapus dari sidebar"
 
@@ -15526,6 +15538,9 @@ msgstr "Ganti nama host"
 
 msgid "Rename page"
 msgstr "Ganti nama halaman"
+
+msgid "Rename section"
+msgstr "Ganti nama bagian"
 
 msgid "Rename session"
 msgstr "Ganti nama sesi"
@@ -16714,6 +16729,9 @@ msgstr "Secondary"
 msgid "Secret Shift Lead"
 msgstr "Ketua Shift Rahasia"
 
+msgid "Section actions"
+msgstr "Aksi bagian"
+
 msgid "Sections"
 msgstr "Bagian"
 
@@ -17106,6 +17124,9 @@ msgstr "Tetapkan proyek…"
 
 msgid "Set Run"
 msgstr "Setel Run"
+
+msgid "Set section color"
+msgstr "Atur warna bagian"
 
 msgid "Set this project"
 msgstr "Tetapkan proyek ini"
